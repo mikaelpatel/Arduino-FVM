@@ -99,6 +99,7 @@ class FVM {
     OP_ALLOT,			// Allocate number of bytes
     OP_COMMA,			// Allocate and assign from top of stack
     OP_C_COMMA,			// Allocate and assign character
+    OP_CELLS,			// Convert cells to bytes for allot
 
     /*
      * Return stack
@@ -199,11 +200,13 @@ class FVM {
      * Basic I/O
      */
     OP_BASE,			// Base for number conversion
+    OP_HEX,			// Set hexa-decimal number conversion base
+    OP_DECIMAL,			// Set decimal number conversion base
     OP_KEY,			// Read character
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
     OP_DOT,			// Print top of stack
-    OP_DUMP,			// Print contents of parameter stack
+    OP_DOT_S,			// Print contents of parameter stack
 
     /*
      * Arduino extensions

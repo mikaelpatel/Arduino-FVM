@@ -31,7 +31,7 @@ const char BLINK_PSTR[] PROGMEM = "blink";
 // : blink ( ms pin -- )
 //   1 over pinmode
 //   begin
-//     dup digitalToggle
+//     dup digitaltoggle
 //     over delay
 //   repeat
 // ;

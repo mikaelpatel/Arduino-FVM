@@ -17,6 +17,7 @@
     OP_ALLOT,			// Allocate number of bytes
     OP_COMMA,			// Allocate and assign from top of stack
     OP_C_COMMA,			// Allocate and assign character
+    OP_CELLS,			// Convert cells to bytes for allot
     OP_TO_R,			// Push data on return stack
     OP_R_FROM,			// Pop data from return stack
     OP_R_FETCH,			// Copy from return stack
@@ -81,6 +82,8 @@
     OP_GREATER,			// Greater than
     OP_LOOKUP,			// Lookup word in dictionary
     OP_BASE,			// Base for number conversion
+    OP_HEX,			// Set hexa-decimal number conversion base
+    OP_DECIMAL,			// Set decimal number conversion base
     OP_KEY,			// Read character
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line

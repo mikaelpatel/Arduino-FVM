@@ -315,6 +315,22 @@ int FVM::resume(task_t& task)
   CALL(C_COMMA_CODE);
 #endif
 
+  // cells ( x -- y )
+  // Convert cells to bytes for allot
+  OP(CELLS)
+#if 0
+    tos *= sizeof(data_t);
+  NEXT();
+#else
+  // : cells ( x -- y ) cell * ;
+  static const code_t CELLS_CODE[] PROGMEM = {
+    FVM_OP(CELL),
+    FVM_OP(STAR),
+    FVM_OP(EXIT)
+  };
+  CALL(CELLS_CODE);
+#endif
+
   // >r ( x -- rp: x )
   // Push data to return stack
   OP(TO_R)
@@ -406,7 +422,7 @@ int FVM::resume(task_t& task)
   // tuck ( x y -- y x y )
   // Duplicate top of stack and rotate
   OP(TUCK)
-#if 1
+#if 0
     tmp = *sp;
     *sp = tos;
     *++sp = tmp;
@@ -748,7 +764,7 @@ int FVM::resume(task_t& task)
   // <> ( x<>y: x y -- -1, else 0 )
   // Top two stack elements are not equal
   OP(NOT_EQUALS)
-#if 1
+#if 0
     if (*sp-- != tos) tos = -1; else tos = 0;
   NEXT();
 #else
@@ -905,11 +921,45 @@ int FVM::resume(task_t& task)
     tos = (data_t) &task.m_base;
   NEXT();
 
+  // hex ( -- )
+  // Set hexa-decimal number conversion base.
+  OP(HEX)
+#if 0
+    task.m_base = 16;
+  NEXT();
+#else
+  // : hex ( -- ) 16 base ! ;
+  static const code_t HEX_CODE[] PROGMEM = {
+    FVM_CLIT(16),
+    FVM_OP(BASE),
+    FVM_OP(STORE),
+    FVM_OP(EXIT)
+  };
+  CALL(HEX_CODE);
+#endif
+
+  // decimal ( -- )
+  // Set decimal number conversion base.
+  OP(DECIMAL)
+#if 0
+    task.m_base = 10;
+  NEXT();
+#else
+  // : decimal ( -- ) 10 base ! ;
+  static const code_t DECIMAL_CODE[] PROGMEM = {
+    FVM_CLIT(10),
+    FVM_OP(BASE),
+    FVM_OP(STORE),
+    FVM_OP(EXIT)
+  };
+  CALL(DECIMAL_CODE);
+#endif
+
   // key ( -- c )
   // Read character
   OP(KEY)
-    *++sp = tos;
     while (!ios.available()) yield();
+    *++sp = tos;
     tos = ios.read();
   NEXT();
 
@@ -934,9 +984,9 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 
-  // dump ( -- )
+  // .s ( -- )
   // Print stack contents
-  OP(DUMP)
+  OP(DOT_S)
     tmp = (sp - task.m_sp0);
     ios.print('[');
     ios.print(tmp);
@@ -944,7 +994,7 @@ int FVM::resume(task_t& task)
     if (tmp > 0) {
       data_t* tp = task.m_sp0 + 1;
       while (--tmp) {
-	ios.print(*++tp);
+	ios.print(*++tp, task.m_base);
 	ios.print(' ');
       }
       ios.print(tos);
@@ -1090,6 +1140,7 @@ static const char HERE_PSTR[] PROGMEM = "here";
 static const char ALLOT_PSTR[] PROGMEM = "allot";
 static const char COMMA_PSTR[] PROGMEM = ",";
 static const char C_COMMA_PSTR[] PROGMEM = "c,";
+static const char CELLS_PSTR[] PROGMEM = "cells";
 static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
@@ -1154,11 +1205,13 @@ static const char MIN_PSTR[] PROGMEM = "min";
 static const char MAX_PSTR[] PROGMEM = "max";
 static const char LOOKUP_PSTR[] PROGMEM = "lookup";
 static const char BASE_PSTR[] PROGMEM = "base";
+static const char HEX_PSTR[] PROGMEM = "hex";
+static const char DECIMAL_PSTR[] PROGMEM = "decimal";
 static const char KEY_PSTR[] PROGMEM = "key";
 static const char EMIT_PSTR[] PROGMEM = "emit";
 static const char CR_PSTR[] PROGMEM = "cr";
 static const char DOT_PSTR[] PROGMEM = ".";
-static const char DUMP_PSTR[] PROGMEM = ".s";
+static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1190,6 +1243,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ALLOT_PSTR,
   (str_P) COMMA_PSTR,
   (str_P) C_COMMA_PSTR,
+  (str_P) CELLS_PSTR,
   (str_P) TO_R_PSTR,
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
@@ -1254,11 +1308,13 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) GREATER_PSTR,
   (str_P) LOOKUP_PSTR,
   (str_P) BASE_PSTR,
+  (str_P) HEX_PSTR,
+  (str_P) DECIMAL_PSTR,
   (str_P) KEY_PSTR,
   (str_P) EMIT_PSTR,
   (str_P) CR_PSTR,
   (str_P) DOT_PSTR,
-  (str_P) DUMP_PSTR,
+  (str_P) DOT_S_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,
