@@ -1003,7 +1003,7 @@ int FVM::resume(task_t& task)
     ios.println();
   NEXT();
 #else
-  // : .s ( -- ) depth begin dup pick . 1- ?dup not while cr ;
+  // : .s ( -- ) depth ?dup if begin dup pick . 1- ?dup not while then cr ;
   static const code_t DOT_S_CODE[] PROGMEM = {
     FVM_OP(DEPTH),
     FVM_OP(DUP),
@@ -1012,6 +1012,8 @@ int FVM::resume(task_t& task)
     FVM_OP(EMIT),
     FVM_CLIT(' '),
     FVM_OP(EMIT),
+    FVM_OP(QDUP),
+    FVM_OP(ZERO_BRANCH), 8,
     FVM_OP(DUP),
     FVM_OP(PICK),
     FVM_OP(DOT),
