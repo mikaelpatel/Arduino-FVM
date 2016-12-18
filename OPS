@@ -88,7 +88,7 @@
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
     OP_DOT,			// Print top of stack
-    OP_DUMP,			// Print contents of parameter stack
+    OP_DOT_S,			// Print contents of parameter stack
     OP_MICROS,			// Micro-seconds
     OP_MILLIS,			// Milli-seconds
     OP_DELAY,			// Delay for given number of milli-seconds
