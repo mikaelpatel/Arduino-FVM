@@ -437,7 +437,7 @@ int FVM::resume(task_t& task)
   CALL(TUCK_CODE);
 #endif
 
-  // pick ( x0..xn i -- x0..xn xi )
+  // pick ( xn..x0 i -- xn..x0 xi )
   // Duplicate index stack element to top of stack
   OP(PICK)
     tos = *(sp - tos);
@@ -987,6 +987,7 @@ int FVM::resume(task_t& task)
   // .s ( -- )
   // Print stack contents
   OP(DOT_S)
+#if 0
     tmp = (sp - task.m_sp0);
     ios.print('[');
     ios.print(tmp);
@@ -1001,7 +1002,28 @@ int FVM::resume(task_t& task)
     }
     ios.println();
   NEXT();
-
+#else
+  // : .s ( -- ) depth begin dup pick . 1- ?dup not while cr ;
+  static const code_t DOT_S_CODE[] PROGMEM = {
+    FVM_OP(DEPTH),
+    FVM_OP(DUP),
+    FVM_OP(DOT),
+    FVM_CLIT(':'),
+    FVM_OP(EMIT),
+    FVM_CLIT(' '),
+    FVM_OP(EMIT),
+    FVM_OP(DUP),
+    FVM_OP(PICK),
+    FVM_OP(DOT),
+    FVM_OP(ONE_MINUS),
+    FVM_OP(QDUP),
+    FVM_OP(NOT),
+    FVM_OP(ZERO_BRANCH), -8,
+    FVM_OP(CR),
+    FVM_OP(EXIT)
+  };
+  CALL(DOT_S_CODE);
+#endif
 
   // fncall ( -- )
   // Call internal function (pointer in tp)
