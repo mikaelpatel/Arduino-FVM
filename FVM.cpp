@@ -382,7 +382,7 @@ int FVM::resume(task_t& task)
   CALL(NIP_CODE);
 #endif
 
-  // empty ( x0...xn -- )
+  // empty ( xn...x0 -- )
   // Empty data stack
   OP(EMPTY)
     sp = task.m_sp0;
@@ -479,7 +479,7 @@ int FVM::resume(task_t& task)
   CALL(MINUS_ROT_CODE);
 #endif
 
-  // roll ( x0..xn n -- x1..xn x0 )
+  // roll ( xn..x0 n -- xn..x0 x0 )
   // Rotate up stack elements
   OP(ROLL)
     if (tos > 0) {
