@@ -49,6 +49,7 @@ const FVM::code_t BLINK_CODE[] PROGMEM = {
 
 const int SKETCH_FN = 1;
 const char SKETCH_PSTR[] PROGMEM = "sketch";
+// : sketch ( -- ) 500 13 blink ;
 const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_LIT(500),
   FVM_CLIT(13),
