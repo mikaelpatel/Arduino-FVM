@@ -447,7 +447,7 @@ int FVM::resume(task_t& task)
   // -rot ( x y z -- z x y )
   // Rotate down top three stack elements
   OP(MINUS_ROT)
-#if 1
+#if 0
     tmp = tos;
     tos = *sp;
     *sp = *(sp - 1);
@@ -474,6 +474,52 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 
+  // : 2swap ( x1 x2 y1 y2 -- y1 y2 x1 x2 ) rot >r rot r> ;
+  // Swap two double stack elements
+  OP(TWO_SWAP)
+  static const code_t TWO_SWAP_CODE[] PROGMEM = {
+    FVM_OP(ROT),
+    FVM_OP(TO_R),
+    FVM_OP(ROT),
+    FVM_OP(R_FROM),
+    FVM_OP(EXIT)
+  };
+  CALL(TWO_SWAP_CODE);
+
+  // : 2dup ( x1 x2 -- x1 x2 x1 x2) over over ;
+  // Duplicate double stack elements
+  OP(TWO_DUP)
+  static const code_t TWO_DUP_CODE[] PROGMEM = {
+    FVM_OP(OVER),
+    FVM_OP(OVER),
+    FVM_OP(EXIT)
+  };
+  CALL(TWO_DUP_CODE);
+
+  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) >r >r 2dup r> r> 2swap ;
+  // Duplicate double next top of stack
+  OP(TWO_OVER)
+  static const code_t TWO_OVER_CODE[] PROGMEM = {
+    FVM_OP(TO_R),
+    FVM_OP(TO_R),
+    FVM_OP(TWO_DUP),
+    FVM_OP(R_FROM),
+    FVM_OP(R_FROM),
+    FVM_OP(TWO_SWAP),
+    FVM_OP(EXIT)
+  };
+  CALL(TWO_OVER_CODE);
+
+  // : 2drop ( x1 x2 -- ) drop drop ;
+  // Drop double top of stack
+  OP(TWO_DROP)
+  static const code_t TWO_DROP_CODE[] PROGMEM = {
+    FVM_OP(DROP),
+    FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(TWO_DROP_CODE);
+
   // cell ( -- n )
   // Size of data element in bytes
   OP(CELL)
@@ -493,7 +539,7 @@ int FVM::resume(task_t& task)
   OP(MINUS_ONE)
 
   // TRUE ( -- -1 )
-  // Constant true
+  // Constant true (alias -1)
   OP(TRUE)
     *++sp = tos;
     tos = -1;
@@ -645,30 +691,30 @@ int FVM::resume(task_t& task)
     *sp = tmp;
   NEXT();
 
-  // << ( x n -- x<<n )
+  // lshift ( x n -- x<<n )
   // Logical shift left given number of positions
   OP(LSHIFT)
     tos = *sp-- << tos;
   NEXT();
 
-  // >> ( x n -- x>>n )
+  // rshift ( x n -- x>>n )
   // Logical shift right given number of positions
   OP(RSHIFT)
     tos = *sp-- >> tos;
   NEXT();
 
-  // bool ( x!= 0: x -- TRUE, else FALSE )
-  // Covert top of stack to boolean
+  // bool ( x<>0: x -- TRUE, else FALSE )
+  // Covert top of stack to boolean (alias 0<>)
   OP(BOOL)
 
-  // 0<> ( x!= 0: x -- -1, else 0 )
+  // 0<> ( x<>0: x -- -1, else 0 )
   // Top of stack not equal zero
   OP(ZERO_NOT_EQUALS)
 #if 1
     if (tos != 0) tos = -1; else tos = 0;
   NEXT();
 #else
-  // : 0<> ( x!=0: x -- -1, else 0 ) 0= not ;
+  // : 0<> ( x<>0: x -- -1, else 0 ) 0= not ;
   static const code_t ZERO_NOT_EQUALS_CODE[] PROGMEM = {
     FVM_OP(ZERO_EQUALS),
     FVM_OP(NOT),
@@ -684,8 +730,9 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // not ( x==0: x -- -1, else 0 )
-  // Covert top of stack to invert boolean
+  // Covert top of stack to invert boolean (alias 0=)
   OP(NOT)
+
   // 0= ( x==0: x -- -1, else 0 )
   // Top of stack less equal zero
   OP(ZERO_EQUALS)
@@ -705,10 +752,10 @@ int FVM::resume(task_t& task)
     if (*sp-- != tos) tos = -1; else tos = 0;
   NEXT();
 #else
-  // : <> ( x<>y: x y -- -1, else 0 ) - bool ;
+  // : <> ( x<>y: x y -- -1, else 0 ) - 0= ;
   static const code_t NOT_EQUALS_CODE[] PROGMEM = {
     FVM_OP(MINUS),
-    FVM_OP(BOOL),
+    FVM_OP(ZERO_EQUALS),
     FVM_OP(EXIT)
   };
   CALL(NOT_EQUALS_CODE);
@@ -805,7 +852,7 @@ int FVM::resume(task_t& task)
   CALL(ABS_CODE);
 #endif
 
-  // min ( x y -- min(x,y))
+  // min ( x y -- min(x,y) )
   // Minimum value of top two stack elements
   OP(MIN)
 #if 0
@@ -813,10 +860,9 @@ int FVM::resume(task_t& task)
     if (tmp < tos) tos = tmp;
   NEXT();
 #else
-  // : min ( x y -- min(x,y)) over over > if swap then drop ;
+  // : min ( x y -- min(x,y)) 2dup > if swap then drop ;
   static const code_t MIN_CODE[] PROGMEM = {
-    FVM_OP(OVER),
-    FVM_OP(OVER),
+    FVM_OP(TWO_DUP),
     FVM_OP(GREATER),
     FVM_OP(ZERO_BRANCH), 1,
     FVM_OP(SWAP),
@@ -834,10 +880,9 @@ int FVM::resume(task_t& task)
     if (tmp > tos) tos = tmp;
   NEXT();
 #else
-  // : max ( x y -- max(x,y)) over over < if swap then drop ;
+  // : max ( x y -- max(x,y)) 2dup < if swap then drop ;
   static const code_t MAX_CODE[] PROGMEM = {
-    FVM_OP(OVER),
-    FVM_OP(OVER),
+    FVM_OP(TWO_DUP),
     FVM_OP(LESS),
     FVM_OP(ZERO_BRANCH), 1,
     FVM_OP(SWAP),
@@ -868,11 +913,17 @@ int FVM::resume(task_t& task)
     tos = ios.read();
   NEXT();
 
-  // emit ( -- c )
+  // emit ( c -- )
   // Print character
   OP(EMIT)
     ios.print((char) tos);
     tos = *sp--;
+  NEXT();
+
+  // cr ( -- )
+  // Print new-line
+  OP(CR)
+    ios.println();
   NEXT();
 
   // dot ( x -- )
@@ -900,6 +951,32 @@ int FVM::resume(task_t& task)
     }
     ios.println();
   NEXT();
+
+
+  // fncall ( -- )
+  // Call internal function (pointer in tp)
+  FNCALL:
+    *++rp = ip;
+    ip = tp;
+
+  // nop ( -- )
+  // No operation
+  OP(NOP)
+  NEXT();
+
+  // halt ( -- )
+  // Halt virtual machine and save context
+  OP(HALT)
+    ip -= 1;
+
+  // yield ( -- )
+  // Yield virtual machine and save context
+  OP(YIELD)
+    if (sp != task.m_sp0) *++sp = tos;
+    task.m_sp = sp;
+    task.m_ip = ip;
+    task.m_rp = rp;
+  return (ir == OP_YIELD);
 
 #if defined(FVM_ARDUINO)
   // micros ( -- us )
@@ -963,30 +1040,14 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 #endif
-
-  // fncall ( -- )
-  // Call internal function (pointer in tp)
-  FNCALL:
-    *++rp = ip;
-    ip = tp;
-  OP(NOP)
-  NEXT();
-
-  // halt ( -- )
-  // Halt virtual machine and save context
-  OP(HALT)
-    ip -= 1;
-
-  // yield ( -- )
-  // Yield virtual machine and save context
-  OP(YIELD)
-    if (sp != task.m_sp0) *++sp = tos;
-    task.m_sp = sp;
-    task.m_ip = ip;
-    task.m_rp = rp;
-    return (ir == OP_YIELD);
   }
   return (-1);
+}
+
+
+int FVM::execute(code_P fn, task_t& task)
+{
+  return (resume(task.call(fn)));
 }
 
 int FVM::execute(code_t op, task_t& task)
@@ -996,13 +1057,7 @@ int FVM::execute(code_t op, task_t& task)
     FVM_OP(HALT)
   };
   task.push(op);
-  task.call(EXECUTE_CODE);
-  return (resume(task));
-}
-
-int FVM::execute(code_P fn, task_t& task)
-{
-  return (resume(task.call(fn)));
+  return (execute(EXECUTE_CODE, task));
 }
 
 int FVM::execute(const char* name, task_t& task)
@@ -1051,6 +1106,10 @@ static const char SWAP_PSTR[] PROGMEM = "swap";
 static const char ROT_PSTR[] PROGMEM = "rot";
 static const char MINUS_ROT_PSTR[] PROGMEM = "-rot";
 static const char ROLL_PSTR[] PROGMEM = "roll";
+static const char TWO_SWAP_PSTR[] PROGMEM = "2swap";
+static const char TWO_DUP_PSTR[] PROGMEM = "2dup";
+static const char TWO_OVER_PSTR[] PROGMEM = "2over";
+static const char TWO_DROP_PSTR[] PROGMEM = "2drop";
 static const char CELL_PSTR[] PROGMEM = "cell";
 static const char MINUS_TWO_PSTR[] PROGMEM = "-2";
 static const char MINUS_ONE_PSTR[] PROGMEM = "-1";
@@ -1097,6 +1156,7 @@ static const char LOOKUP_PSTR[] PROGMEM = "lookup";
 static const char BASE_PSTR[] PROGMEM = "base";
 static const char KEY_PSTR[] PROGMEM = "key";
 static const char EMIT_PSTR[] PROGMEM = "emit";
+static const char CR_PSTR[] PROGMEM = "cr";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DUMP_PSTR[] PROGMEM = ".s";
 static const char MICROS_PSTR[] PROGMEM = "micros";
@@ -1146,6 +1206,10 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ROT_PSTR,
   (str_P) MINUS_ROT_PSTR,
   (str_P) ROLL_PSTR,
+  (str_P) TWO_SWAP_PSTR,
+  (str_P) TWO_DUP_PSTR,
+  (str_P) TWO_OVER_PSTR,
+  (str_P) TWO_DROP_PSTR,
   (str_P) CELL_PSTR,
   (str_P) MINUS_TWO_PSTR,
   (str_P) MINUS_ONE_PSTR,
@@ -1192,6 +1256,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) BASE_PSTR,
   (str_P) KEY_PSTR,
   (str_P) EMIT_PSTR,
+  (str_P) CR_PSTR,
   (str_P) DOT_PSTR,
   (str_P) DUMP_PSTR,
   (str_P) MICROS_PSTR,

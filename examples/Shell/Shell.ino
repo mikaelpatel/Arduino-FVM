@@ -62,7 +62,4 @@ void loop()
 
   // Lookup and execute
   fvm.execute(buffer, task);
-
-  // Check for new-line echo
-  if (c == '\n') Serial.println();
 }

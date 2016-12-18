@@ -123,6 +123,10 @@ class FVM {
     OP_ROT,			// Rotate three top stack elements
     OP_MINUS_ROT,		// Inverse rotate three top stack elements
     OP_ROLL,			// Rotate given number of stack elements
+    OP_TWO_SWAP,		// Swap two double stack elements
+    OP_TWO_DUP,			// Duplicate double stack elements
+    OP_TWO_OVER,		// Duplicate double next top of stack
+    OP_TWO_DROP,		// Drop double top of stack
 
     /*
      * Constants
@@ -197,6 +201,7 @@ class FVM {
     OP_BASE,			// Base for number conversion
     OP_KEY,			// Read character
     OP_EMIT,			// Print character
+    OP_CR,			// Print new-line
     OP_DOT,			// Print top of stack
     OP_DUMP,			// Print contents of parameter stack
 
