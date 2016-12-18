@@ -1,8 +1,8 @@
 # Arduino-FVM
 
 This library provides a token threaded Forth kernel that may be
-embedded in an Arduino sketches. The kernel can be used from debugging
-shell to full scale Forth applications.
+embedded in Arduino sketches. The kernel can be used as a debug
+shell or even full scale Forth applications.
 
 Please note that this is work in progress.
 
