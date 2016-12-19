@@ -318,7 +318,7 @@ int FVM::resume(task_t& task)
   // cells ( x -- y )
   // Convert cells to bytes for allot
   OP(CELLS)
-#if 0
+#if 1
     tos *= sizeof(data_t);
   NEXT();
 #else
@@ -397,7 +397,7 @@ int FVM::resume(task_t& task)
   // ?dup ( x -- x x | 0 -- 0 )
   // Duplicate non zero top of stack
   OP(QDUP)
-#if 1
+#if 0
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
@@ -780,7 +780,7 @@ int FVM::resume(task_t& task)
   // < ( x<y: x y -- -1, else 0 )
   // Second element is less than top element
   OP(LESS)
-#if 1
+#if 0
     if (*sp-- < tos) tos = -1; else tos = 0;
   NEXT();
 #else
@@ -796,7 +796,7 @@ int FVM::resume(task_t& task)
   // = ( x==y: x y -- -1, else 0 )
   // Top two stack elements are equal
   OP(EQUALS)
-#if 1
+#if 0
     if (*sp-- == tos) tos = -1; else tos = 0;
   NEXT();
 #else
@@ -812,7 +812,7 @@ int FVM::resume(task_t& task)
   // > ( x>y: x y -- -1, else 0 )
   // Second element is greater than top element
   OP(GREATER)
-#if 1
+#if 0
     if (*sp-- > tos) tos = -1; else tos = 0;
   NEXT();
 #else
@@ -853,7 +853,7 @@ int FVM::resume(task_t& task)
   // abs ( x -- |x| )
   // Absolute value of top of stack
   OP(ABS)
-#if 0
+#if 1
     if (tos < 0) tos = -tos;
   NEXT();
 #else
@@ -973,8 +973,54 @@ int FVM::resume(task_t& task)
   // cr ( -- )
   // Print new-line
   OP(CR)
+#if 1
     ios.println();
   NEXT();
+#else
+  // : cr ( -- ) '\n' emit ;
+  static const code_t CR_CODE[] PROGMEM = {
+    FVM_CLIT('\n'),
+    FVM_OP(EMIT),
+    FVM_OP(EXIT)
+  };
+  CALL(CR_CODE);
+#endif
+
+  // space ( -- )
+  // Print space
+  OP(SPACE)
+#if 1
+    ios.print(' ');
+  NEXT();
+#else
+  // : space ( -- ) ' ' emit ;
+  static const code_t SPACE_CODE[] PROGMEM = {
+    FVM_CLIT(' '),
+    FVM_OP(EMIT),
+    FVM_OP(EXIT)
+  };
+  CALL(SPACE_CODE);
+#endif
+
+  // spaces ( n -- )
+  // Print spaces
+  OP(SPACES)
+#if 1
+    while (tos--) ios.print(' ');
+    tos = *sp--;
+  NEXT();
+#else
+  // : spaces ( n -- ) begin ?dup while space 1- repeat ;
+  static const code_t SPACES_CODE[] PROGMEM = {
+    FVM_OP(QDUP),
+    FVM_OP(ZERO_BRANCH), 4,
+    FVM_OP(SPACE),
+    FVM_OP(ONE_MINUS),
+    FVM_OP(BRANCH), -7,
+    FVM_OP(EXIT)
+  };
+  CALL(SPACES_CODE);
+#endif
 
   // dot ( x -- )
   // Print value on top of stack.
@@ -1003,24 +1049,26 @@ int FVM::resume(task_t& task)
     ios.println();
   NEXT();
 #else
-  // : .s ( -- ) depth ?dup if begin dup pick . 1- ?dup not while then cr ;
+  // : .s ( -- )
+  // depth dup . ':' emit space
+  // begin ?dup while
+  //   dup pick . 1-
+  // repeat
+  // cr ;
   static const code_t DOT_S_CODE[] PROGMEM = {
     FVM_OP(DEPTH),
     FVM_OP(DUP),
     FVM_OP(DOT),
     FVM_CLIT(':'),
     FVM_OP(EMIT),
-    FVM_CLIT(' '),
-    FVM_OP(EMIT),
+    FVM_OP(SPACE),
     FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 8,
+    FVM_OP(ZERO_BRANCH), 6,
     FVM_OP(DUP),
     FVM_OP(PICK),
     FVM_OP(DOT),
     FVM_OP(ONE_MINUS),
-    FVM_OP(QDUP),
-    FVM_OP(NOT),
-    FVM_OP(ZERO_BRANCH), -8,
+    FVM_OP(BRANCH), -9,
     FVM_OP(CR),
     FVM_OP(EXIT)
   };
@@ -1234,6 +1282,8 @@ static const char DECIMAL_PSTR[] PROGMEM = "decimal";
 static const char KEY_PSTR[] PROGMEM = "key";
 static const char EMIT_PSTR[] PROGMEM = "emit";
 static const char CR_PSTR[] PROGMEM = "cr";
+static const char SPACE_PSTR[] PROGMEM = "space";
+static const char SPACES_PSTR[] PROGMEM = "spaces";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char MICROS_PSTR[] PROGMEM = "micros";
@@ -1337,6 +1387,8 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) KEY_PSTR,
   (str_P) EMIT_PSTR,
   (str_P) CR_PSTR,
+  (str_P) SPACE_PSTR,
+  (str_P) SPACES_PSTR,
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) MICROS_PSTR,
