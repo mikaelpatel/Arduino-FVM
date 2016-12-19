@@ -87,6 +87,8 @@
     OP_KEY,			// Read character
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
+    OP_SPACE,			// Print space
+    OP_SPACES,			// Print spaces
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_MICROS,			// Micro-seconds
