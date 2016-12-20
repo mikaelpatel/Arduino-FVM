@@ -1140,6 +1140,31 @@ int FVM::resume(task_t& task)
     task.m_rp = rp;
   return (ir == OP_YIELD);
 
+  // delay ( ms -- )
+  // Yield while waiting given number of milli-seconds
+  OP(DELAY)
+  // : delay ( ms -- )
+  //   millis +
+  //   begin
+  //     dup u<
+  //   while
+  //     yield
+  //   repeat drop ;
+  static const code_t DELAY_CODE[] PROGMEM = {
+    FVM_OP(MILLIS),
+    FVM_OP(PLUS),
+      FVM_OP(DUP),
+      FVM_OP(MILLIS),
+      FVM_OP(U_LESS),
+      FVM_OP(NOT),
+    FVM_OP(ZERO_BRANCH), 3,
+      FVM_OP(YIELD),
+    FVM_OP(BRANCH), -9,
+    FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(DELAY_CODE);
+
 #if defined(FVM_ARDUINO)
   // micros ( -- us )
   // Micro-seconds
@@ -1153,13 +1178,6 @@ int FVM::resume(task_t& task)
   OP(MILLIS)
     *++sp = tos;
     tos = millis();
-  NEXT();
-
-  // delay ( ms -- )
-  // Wait given number of milli-seconds
-  OP(DELAY)
-    delay(tos);
-    tos = *sp--;
   NEXT();
 
   // pinmode ( mode pin -- )

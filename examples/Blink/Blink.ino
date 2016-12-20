@@ -26,31 +26,11 @@
  * @section Foot-print
  *  Bytes      Section
  * ---------------------------------------
- *        1482 Main and Serial
- *  +72   1554 +Blink sketch code and task
- *  +3500 5054 +Forth Virtual Machine
- *  +776  5830 +Kernel dictionary
- *  +506  6326 +Trace mode
- * ---------------------------------------
- * Extra bytes when adding C++ code for:
- *  +2    6328 hex
- *  +2    6328 decimal
- *  +4    6330 here
- *  +4    6330 ,
- *  +6    6332 allot
- *  +6    6332 ,
- *  +10   6336 +!
- *  +10   6336 ?dup
- *  +10   6336 -rot
- *  +12   6338 min
- *  +12   6338 max
- *  +14   6340 <>
- *  +14   6340 <
- *  +14   6340 =
- *  +14   6340 >
- *  +36   6362 within
- *  +410  6736 .
- *  +476  6802 .s
+ *        1400 Main and Serial
+ *  +84   2000 +Blink sketch code and task
+ *  +3012 5012 +Forth Virtual Machine
+ *  +768  5780 +Kernel dictionary
+ *  +976  6756 +Trace mode
  * ---------------------------------------
  *  Arduino Uno/IDE 1.6.13
  */
@@ -100,20 +80,27 @@ const str_P FVM::fnstr[] PROGMEM = {
   0
 };
 
+FVM::task_t task(Serial, SKETCH_CODE);
 FVM fvm;
-FVM::task_t task(Serial);
 #endif
 
 void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Blink: started"));
 }
 
 void loop()
 {
 #if 1
-  fvm.execute(SKETCH_CODE, task);
+  static uint32_t count = 0;
+  uint32_t start = micros();
+  fvm.resume(task);
+  uint32_t us = micros()-start;
+  Serial.print(count++);
+  Serial.print(':');
+  Serial.println(us);
+  Serial.flush();
+  delay(100);
 #endif
 }

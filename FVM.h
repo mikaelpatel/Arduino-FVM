@@ -28,14 +28,14 @@
 
 /**
  * Enable symbolic trace of virtual machine instruction cycle.
- */
 #define FVM_TRACE
+ */
 
 /**
  * Disable kernel dictionary. Reduce foot-print for non-interactive
  * application.
-#define FVM_NDICT
  */
+#define FVM_NDICT
 
 /**
  * Enable extended instruction set.
@@ -218,7 +218,7 @@ class FVM {
      */
     OP_MICROS,			// Micro-seconds
     OP_MILLIS,			// Milli-seconds
-    OP_DELAY,			// Delay for given number of milli-seconds
+    OP_DELAY,			// Delay milli-seconds (yield)
     OP_PINMODE,			// Digital pin mode
     OP_DIGITALREAD,		// Read digital pin
     OP_DIGITALWRITE,		// Write digital pin
