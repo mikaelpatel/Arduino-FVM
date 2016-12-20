@@ -80,6 +80,7 @@
     OP_LESS,			// Less than
     OP_EQUALS,			// Equal
     OP_GREATER,			// Greater than
+    OP_U_LESS,			// Unsigned less than
     OP_LOOKUP,			// Lookup word in dictionary
     OP_BASE,			// Base for number conversion
     OP_HEX,			// Set hexa-decimal number conversion base
@@ -89,6 +90,7 @@
     OP_CR,			// Print new-line
     OP_SPACE,			// Print space
     OP_SPACES,			// Print spaces
+    OP_U_DOT,			// Print top of stack as unsigned
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_MICROS,			// Micro-seconds

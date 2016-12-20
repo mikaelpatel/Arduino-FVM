@@ -32,7 +32,8 @@
 #define FVM_TRACE
 
 /**
- * Disable kernel dictionary.
+ * Disable kernel dictionary. Reduce foot-print for non-interactive
+ * application.
 #define FVM_NDICT
  */
 
@@ -190,6 +191,7 @@ class FVM {
     OP_LESS,			// Less than
     OP_EQUALS,			// Equal
     OP_GREATER,			// Greater than
+    OP_U_LESS,			// Unsigned less than
 
     /*
      * Dictionary functions
@@ -207,6 +209,7 @@ class FVM {
     OP_CR,			// Print new-line
     OP_SPACE,			// Print space
     OP_SPACES,			// Print spaces
+    OP_U_DOT,			// Print top of stack as unsigned
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
 
@@ -230,7 +233,9 @@ class FVM {
   } __attribute__((packed));
 
   typedef int16_t data_t;
+  typedef uint16_t udata_t;
   typedef int32_t data2_t;
+  typedef uint32_t udata2_t;
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
 

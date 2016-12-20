@@ -129,13 +129,13 @@ int FVM::resume(task_t& task)
   switch (ir) {
 
   // exit ( rp: ip -- )
-  // Exit from call. Pop old instruction pointer from return stack
+  // Exit from call. Pop instruction pointer from return stack
   OP(EXIT)
     ip = *rp--;
   NEXT();
 
   // (literal) ( -- x )
-  // Push literal data
+  // Push literal data (big-endian)
   OP(LITERAL)
     *++sp = tos;
     tos = (int8_t) FETCH(ip++);
@@ -165,7 +165,7 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // execute ( n -- )
-  // Execute primitive or function.
+  // Execute primitive or function (as returned by lookup)
   OP(EXECUTE)
     if (tos > 0) {
       ir = tos;
@@ -189,33 +189,33 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // c@ ( addr -- x )
-  // Load character given address top of stack
+  // Load character given address on top of stack
   OP(C_FETCH)
     tos = *((int8_t*) tos);
   NEXT();
 
   // c! ( x addr -- )
-  // Store character given address top of stack
+  // Store character given address on top of stack
   OP(C_STORE)
     *((int8_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
   // @ ( addr -- x )
-  // Load data given address top of stack
+  // Load data given address on top of stack
   OP(FETCH)
     tos = *((data_t*) tos);
   NEXT();
 
   // ! ( x addr -- )
-  // Store data given address top of stack
+  // Store data given address on top of stack
   OP(STORE)
     *((data_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
   // +! ( n addr -- )
-  // Add data given address top of stack
+  // Add data given address on top of stack
   OP(PLUS_STORE)
 #if 0
     *((data_t*) tos) += *sp--;
@@ -405,7 +405,7 @@ int FVM::resume(task_t& task)
   static const code_t QDUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_BRANCH), 1,
-    FVM_OP(DUP),
+      FVM_OP(DUP),
     FVM_OP(EXIT)
   };
   CALL(QDUP_CODE);
@@ -719,118 +719,12 @@ int FVM::resume(task_t& task)
     tos = *sp-- >> tos;
   NEXT();
 
-  // bool ( x<>0: x -- TRUE, else FALSE )
-  // Covert top of stack to boolean (alias 0<>)
-  OP(BOOL)
-
-  // 0<> ( x<>0: x -- -1, else 0 )
-  // Top of stack not equal zero
-  OP(ZERO_NOT_EQUALS)
-#if 1
-    if (tos != 0) tos = -1; else tos = 0;
-  NEXT();
-#else
-  // : 0<> ( x<>0: x -- -1, else 0 ) 0= not ;
-  static const code_t ZERO_NOT_EQUALS_CODE[] PROGMEM = {
-    FVM_OP(ZERO_EQUALS),
-    FVM_OP(NOT),
-    FVM_OP(EXIT)
-  };
-  CALL(ZERO_NOT_EQUALS_CODE);
-#endif
-
-  // 0< ( x<0: x -- -1, else 0 )
-  // Top of stack less than zero
-  OP(ZERO_LESS)
-    if (tos < 0) tos = -1; else tos = 0;
-  NEXT();
-
-  // not ( x==0: x -- -1, else 0 )
-  // Covert top of stack to invert boolean (alias 0=)
-  OP(NOT)
-
-  // 0= ( x==0: x -- -1, else 0 )
-  // Top of stack less equal zero
-  OP(ZERO_EQUALS)
-    if (tos == 0) tos = -1; else tos = 0;
-  NEXT();
-
-  // 0> ( x>0: x -- -1, else 0 )
-  // Top of stack less greater than zero
-  OP(ZERO_GREATER)
-    if (tos > 0) tos = -1; else tos = 0;
-  NEXT();
-
-  // <> ( x<>y: x y -- -1, else 0 )
-  // Top two stack elements are not equal
-  OP(NOT_EQUALS)
-#if 0
-    if (*sp-- != tos) tos = -1; else tos = 0;
-  NEXT();
-#else
-  // : <> ( x<>y: x y -- -1, else 0 ) - 0= ;
-  static const code_t NOT_EQUALS_CODE[] PROGMEM = {
-    FVM_OP(MINUS),
-    FVM_OP(ZERO_EQUALS),
-    FVM_OP(EXIT)
-  };
-  CALL(NOT_EQUALS_CODE);
-#endif
-
-  // < ( x<y: x y -- -1, else 0 )
-  // Second element is less than top element
-  OP(LESS)
-#if 0
-    if (*sp-- < tos) tos = -1; else tos = 0;
-  NEXT();
-#else
-  // : < ( x<y: x y -- -1, else 0 ) - 0< ;
-  static const code_t LESS_CODE[] PROGMEM = {
-    FVM_OP(MINUS),
-    FVM_OP(ZERO_LESS),
-    FVM_OP(EXIT)
-  };
-  CALL(LESS_CODE);
-#endif
-
-  // = ( x==y: x y -- -1, else 0 )
-  // Top two stack elements are equal
-  OP(EQUALS)
-#if 0
-    if (*sp-- == tos) tos = -1; else tos = 0;
-  NEXT();
-#else
-  // : = ( x==y: x y -- -1, else 0 ) - 0= ;
-  static const code_t EQUALS_CODE[] PROGMEM = {
-    FVM_OP(MINUS),
-    FVM_OP(ZERO_EQUALS),
-    FVM_OP(EXIT)
-  };
-  CALL(EQUALS_CODE);
-#endif
-
-  // > ( x>y: x y -- -1, else 0 )
-  // Second element is greater than top element
-  OP(GREATER)
-#if 0
-    if (*sp-- > tos) tos = -1; else tos = 0;
-  NEXT();
-#else
-  // : > ( x>y: x y -- -1, else 0 ) - 0< ;
-  static const code_t GREATER_CODE[] PROGMEM = {
-    FVM_OP(MINUS),
-    FVM_OP(ZERO_GREATER),
-    FVM_OP(EXIT)
-  };
-  CALL(GREATER_CODE);
-#endif
-
   // within ( x low high -- flag )
   // Check if value is within boundary
   OP(WITHIN)
 #if 0
     tmp = *sp--;
-    if ((*sp <= tos) & (*sp >= tmp)) tos = -1; else tos = 0;
+    tos = ((*sp <= tos) & (*sp >= tmp)) ? -1 : 0;
     sp--;
   NEXT();
 #else
@@ -862,7 +756,7 @@ int FVM::resume(task_t& task)
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
     FVM_OP(ZERO_BRANCH), 1,
-    FVM_OP(NEGATE),
+      FVM_OP(NEGATE),
     FVM_OP(EXIT)
   };
   CALL(ABS_CODE);
@@ -881,7 +775,7 @@ int FVM::resume(task_t& task)
     FVM_OP(TWO_DUP),
     FVM_OP(GREATER),
     FVM_OP(ZERO_BRANCH), 1,
-    FVM_OP(SWAP),
+      FVM_OP(SWAP),
     FVM_OP(DROP),
     FVM_OP(EXIT)
   };
@@ -901,12 +795,124 @@ int FVM::resume(task_t& task)
     FVM_OP(TWO_DUP),
     FVM_OP(LESS),
     FVM_OP(ZERO_BRANCH), 1,
-    FVM_OP(SWAP),
+      FVM_OP(SWAP),
     FVM_OP(DROP),
     FVM_OP(EXIT)
   };
   CALL(MAX_CODE);
 #endif
+
+  // bool ( x<>0: x -- TRUE, else FALSE )
+  // Covert top of stack to boolean (alias 0<>)
+  OP(BOOL)
+
+  // 0<> ( x<>0: x -- -1, else 0 )
+  // Top of stack not equal zero
+  OP(ZERO_NOT_EQUALS)
+#if 1
+    tos = (tos != 0) ? -1 : 0;
+  NEXT();
+#else
+  // : 0<> ( x<>0: x -- -1, else 0 ) 0= not ;
+  static const code_t ZERO_NOT_EQUALS_CODE[] PROGMEM = {
+    FVM_OP(ZERO_EQUALS),
+    FVM_OP(NOT),
+    FVM_OP(EXIT)
+  };
+  CALL(ZERO_NOT_EQUALS_CODE);
+#endif
+
+  // 0< ( x<0: x -- -1, else 0 )
+  // Top of stack less than zero
+  OP(ZERO_LESS)
+    tos = (tos < 0) ? -1 : 0;
+  NEXT();
+
+  // not ( x==0: x -- -1, else 0 )
+  // Covert top of stack to invert boolean (alias 0=)
+  OP(NOT)
+
+  // 0= ( x==0: x -- -1, else 0 )
+  // Top of stack less equal zero
+  OP(ZERO_EQUALS)
+    tos = (tos == 0) ? -1 : 0;
+  NEXT();
+
+  // 0> ( x>0: x -- -1, else 0 )
+  // Top of stack less greater than zero
+  OP(ZERO_GREATER)
+    tos = (tos > 0) ? -1 : 0;
+  NEXT();
+
+  // <> ( x<>y: x y -- -1, else 0 )
+  // Top two stack elements are not equal
+  OP(NOT_EQUALS)
+#if 0
+    tos = (*sp-- != tos) ? -1 : 0;
+  NEXT();
+#else
+  // : <> ( x<>y: x y -- -1, else 0 ) - 0= ;
+  static const code_t NOT_EQUALS_CODE[] PROGMEM = {
+    FVM_OP(MINUS),
+    FVM_OP(ZERO_EQUALS),
+    FVM_OP(EXIT)
+  };
+  CALL(NOT_EQUALS_CODE);
+#endif
+
+  // < ( x<y: x y -- -1, else 0 )
+  // Second element is less than top element
+  OP(LESS)
+#if 0
+    tos = (*sp-- < tos) ? -1 : 0;
+  NEXT();
+#else
+  // : < ( x<y: x y -- -1, else 0 ) - 0< ;
+  static const code_t LESS_CODE[] PROGMEM = {
+    FVM_OP(MINUS),
+    FVM_OP(ZERO_LESS),
+    FVM_OP(EXIT)
+  };
+  CALL(LESS_CODE);
+#endif
+
+  // = ( x==y: x y -- -1, else 0 )
+  // Top two stack elements are equal
+  OP(EQUALS)
+#if 0
+    tos = (*sp-- == tos) ? -1 : 0;
+  NEXT();
+#else
+  // : = ( x==y: x y -- -1, else 0 ) - 0= ;
+  static const code_t EQUALS_CODE[] PROGMEM = {
+    FVM_OP(MINUS),
+    FVM_OP(ZERO_EQUALS),
+    FVM_OP(EXIT)
+  };
+  CALL(EQUALS_CODE);
+#endif
+
+  // > ( x>y: x y -- -1, else 0 )
+  // Second element is greater than top element
+  OP(GREATER)
+#if 0
+    tos = (*sp-- > tos) ? -1 : 0;
+  NEXT();
+#else
+  // : > ( x>y: x y -- -1, else 0 ) - 0< ;
+  static const code_t GREATER_CODE[] PROGMEM = {
+    FVM_OP(MINUS),
+    FVM_OP(ZERO_GREATER),
+    FVM_OP(EXIT)
+  };
+  CALL(GREATER_CODE);
+#endif
+
+  // u< ( x<y: x y -- -1, else 0 )
+  // Second element is unsigned less than top element
+  OP(U_LESS)
+    tos = ((udata_t) *sp-- < (udata_t) tos) ? -1 : 0;
+  NEXT();
 
   // lookup ( str -- n)
   // Lookup string in dictionary.
@@ -1005,30 +1011,58 @@ int FVM::resume(task_t& task)
   // spaces ( n -- )
   // Print spaces
   OP(SPACES)
-#if 1
+#if 0
     while (tos--) ios.print(' ');
     tos = *sp--;
   NEXT();
 #else
-  // : spaces ( n -- ) begin ?dup while space 1- repeat ;
+  // : spaces ( n -- )
+  //   begin
+  //     ?dup
+  //   while
+  //     space 1-
+  //   repeat ;
   static const code_t SPACES_CODE[] PROGMEM = {
-    FVM_OP(QDUP),
+      FVM_OP(QDUP),
     FVM_OP(ZERO_BRANCH), 4,
-    FVM_OP(SPACE),
-    FVM_OP(ONE_MINUS),
+      FVM_OP(SPACE),
+      FVM_OP(ONE_MINUS),
     FVM_OP(BRANCH), -7,
     FVM_OP(EXIT)
   };
   CALL(SPACES_CODE);
 #endif
 
-  // dot ( x -- )
-  // Print value on top of stack.
+  // u. ( ux -- )
+  // Print value on top of stack as unsigned number.
+  OP(U_DOT)
+    ios.print((udata_t) tos, task.m_base);
+    tos = *sp--;
+  NEXT();
+
+  // . ( x -- )
+  // Print value on top of stack as signed number.
   OP(DOT)
+#if 0
     ios.print(tos, task.m_base);
     ios.print(' ');
     tos = *sp--;
   NEXT();
+#else
+  // : . ( n -- ) dup 0< if '-' emit abs then u. space ;
+  static const code_t DOT_CODE[] PROGMEM = {
+    FVM_OP(DUP),
+    FVM_OP(ZERO_LESS),
+    FVM_OP(ZERO_BRANCH), 3,
+      FVM_CLIT('-'),
+      FVM_OP(EMIT),
+      FVM_OP(ABS),
+    FVM_OP(U_DOT),
+    FVM_OP(SPACE),
+    FVM_OP(EXIT)
+  };
+  CALL(DOT_CODE);
+#endif
 
   // .s ( -- )
   // Print stack contents
@@ -1050,24 +1084,30 @@ int FVM::resume(task_t& task)
   NEXT();
 #else
   // : .s ( -- )
-  // depth dup . ':' emit space
-  // begin ?dup while
+  // depth dup '[' emit u. ']' emit ':' emit space
+  // begin
+  //   ?dup
+  // while
   //   dup pick . 1-
   // repeat
   // cr ;
   static const code_t DOT_S_CODE[] PROGMEM = {
     FVM_OP(DEPTH),
     FVM_OP(DUP),
-    FVM_OP(DOT),
+    FVM_CLIT('['),
+    FVM_OP(EMIT),
+    FVM_OP(U_DOT),
+    FVM_CLIT(']'),
+    FVM_OP(EMIT),
     FVM_CLIT(':'),
     FVM_OP(EMIT),
     FVM_OP(SPACE),
-    FVM_OP(QDUP),
+      FVM_OP(QDUP),
     FVM_OP(ZERO_BRANCH), 6,
-    FVM_OP(DUP),
-    FVM_OP(PICK),
-    FVM_OP(DOT),
-    FVM_OP(ONE_MINUS),
+      FVM_OP(DUP),
+      FVM_OP(PICK),
+      FVM_OP(DOT),
+      FVM_OP(ONE_MINUS),
     FVM_OP(BRANCH), -9,
     FVM_OP(CR),
     FVM_OP(EXIT)
@@ -1271,6 +1311,7 @@ static const char NOT_EQUALS_PSTR[] PROGMEM = "<>";
 static const char LESS_PSTR[] PROGMEM = "<";
 static const char EQUALS_PSTR[] PROGMEM = "=";
 static const char GREATER_PSTR[] PROGMEM = ">";
+static const char U_LESS_PSTR[] PROGMEM = "u<";
 static const char WITHIN_PSTR[] PROGMEM = "within";
 static const char ABS_PSTR[] PROGMEM = "abs";
 static const char MIN_PSTR[] PROGMEM = "min";
@@ -1284,6 +1325,7 @@ static const char EMIT_PSTR[] PROGMEM = "emit";
 static const char CR_PSTR[] PROGMEM = "cr";
 static const char SPACE_PSTR[] PROGMEM = "space";
 static const char SPACES_PSTR[] PROGMEM = "spaces";
+static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char MICROS_PSTR[] PROGMEM = "micros";
@@ -1380,6 +1422,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LESS_PSTR,
   (str_P) EQUALS_PSTR,
   (str_P) GREATER_PSTR,
+  (str_P) U_LESS_PSTR,
   (str_P) LOOKUP_PSTR,
   (str_P) BASE_PSTR,
   (str_P) HEX_PSTR,
@@ -1389,6 +1432,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) CR_PSTR,
   (str_P) SPACE_PSTR,
   (str_P) SPACES_PSTR,
+  (str_P) U_DOT_PSTR,
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) MICROS_PSTR,
