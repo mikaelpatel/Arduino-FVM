@@ -35,10 +35,8 @@
 int FVM::lookup(const char* name)
 {
   const char* s;
-#if defined(FVM_DICT)
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
-#endif
   for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (-i-1);
   return (0);
