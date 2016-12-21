@@ -28,14 +28,14 @@
 
 /**
  * Enable symbolic trace of virtual machine instruction cycle.
-#define FVM_TRACE
  */
+#define FVM_TRACE
 
 /**
- * Disable kernel dictionary. Reduce foot-print for non-interactive
+ * Enable kernel dictionary. Reduce foot-print for non-interactive
  * application.
  */
-#define FVM_NDICT
+#define FVM_DICT
 
 /**
  * Enable extended instruction set.
@@ -333,9 +333,7 @@ class FVM {
   static const str_P fnstr[] PROGMEM;
 
   // Kernel dictionary
-#if !defined(FVM_NDICT)
   static const str_P opstr[] PROGMEM;
-#endif
 };
 
 #endif

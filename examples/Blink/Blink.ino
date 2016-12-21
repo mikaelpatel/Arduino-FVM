@@ -24,15 +24,15 @@
  * Classical blink sketch using the Forth Virtual Machine (FVM).
  *
  * @section Foot-print
- *  Bytes      Section
- * ---------------------------------------
- *        1400 Main and Serial
+ * Bytes      Section
+ * ------------------------------------------------
+ *        1916 Startup, Serial and setup/loop
  *  +84   2000 +Blink sketch code and task
- *  +3012 5012 +Forth Virtual Machine
- *  +768  5780 +Kernel dictionary
+ *  +3056 5056 +Forth Virtual Machine
+ *  +724  5780 +Kernel dictionary
  *  +976  6756 +Trace mode
- * ---------------------------------------
- *  Arduino Uno/IDE 1.6.13
+ * ------------------------------------------------
+ * Arduino Uno/IDE 1.6.13
  */
 
 #if 1
@@ -92,15 +92,15 @@ void setup()
 
 void loop()
 {
-#if 1
   static uint32_t count = 0;
   uint32_t start = micros();
+#if 1
   fvm.resume(task);
+#endif
   uint32_t us = micros()-start;
   Serial.print(count++);
   Serial.print(':');
   Serial.println(us);
   Serial.flush();
   delay(100);
-#endif
 }

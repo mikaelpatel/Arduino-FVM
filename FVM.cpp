@@ -35,7 +35,7 @@
 int FVM::lookup(const char* name)
 {
   const char* s;
-#if !defined(FVM_NDICT)
+#if defined(FVM_DICT)
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
 #endif
@@ -98,7 +98,7 @@ int FVM::resume(task_t& task)
     }
     else if (task.m_trace) {
       ios.print(ir);
-#if !defined(FVM_NDICT)
+#if defined(FVM_DICT)
       ios.print(':');
       ios.print(OPSTR(ir));
 #endif
@@ -851,10 +851,10 @@ int FVM::resume(task_t& task)
     tos = (*sp-- != tos) ? -1 : 0;
   NEXT();
 #else
-  // : <> ( x<>y: x y -- -1, else 0 ) - 0= ;
+  // : <> ( x<>y: x y -- -1, else 0 ) - bool ;
   static const code_t NOT_EQUALS_CODE[] PROGMEM = {
     FVM_OP(MINUS),
-    FVM_OP(ZERO_EQUALS),
+    FVM_OP(BOOL),
     FVM_OP(EXIT)
   };
   CALL(NOT_EQUALS_CODE);
@@ -1250,7 +1250,7 @@ int FVM::execute(const char* name, task_t& task)
   return (execute(op, task));
 }
 
-#if !defined(FVM_NDICT)
+#if defined(FVM_DICT)
 static const char EXIT_PSTR[] PROGMEM = "exit";
 static const char LITERAL_PSTR[] PROGMEM = "(literal)";
 static const char C_LITERAL_PSTR[] PROGMEM = "(cliteral)";
@@ -1356,8 +1356,10 @@ static const char DIGITALTOGGLE_PSTR[] PROGMEM = "digitaltoggle";
 static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
 static const char NOP_PSTR[] PROGMEM = "nop";
+#endif
 
 const str_P FVM::opstr[] PROGMEM = {
+#if defined(FVM_DICT)
   (str_P) EXIT_PSTR,
   (str_P) LITERAL_PSTR,
   (str_P) C_LITERAL_PSTR,
@@ -1463,6 +1465,6 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ANALOGREAD_PSTR,
   (str_P) ANALOGWRITE_PSTR,
   (str_P) NOP_PSTR,
+#endif
   0
 };
-#endif

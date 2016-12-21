@@ -46,6 +46,17 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(EMPTY),		// 2 1 4 1 1
   FVM_OP(YIELD),		// -
 
+  // Double element operations
+  FVM_OP(ZERO),			// -
+  FVM_OP(ONE),			// 0
+  FVM_OP(TWO_DUP),		// 0 1
+  FVM_OP(SWAP),			// 0 1 0 1
+  FVM_OP(TWO_SWAP),		// 0 1 1 0
+  FVM_OP(TWO_OVER),		// 1 0 0 1
+  FVM_OP(TWO_DROP),		// 1 0 0 1 1 0
+  FVM_OP(EMPTY),		// 1 0 0 1
+  FVM_OP(YIELD),		// -
+
   // Return stack operations
   FVM_OP(ZERO),			// -
   FVM_OP(ONE),			// 0
@@ -72,7 +83,7 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(EMPTY),		// -15
   FVM_OP(YIELD),		// -
 
-  // Arithmetric operations
+  // Arithmetic operations
   FVM_OP(MINUS_ONE),		// -
   FVM_OP(NEGATE),		// -1
   FVM_OP(ONE_MINUS),		// 1
@@ -99,7 +110,7 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(EMPTY),		// -1
   FVM_OP(YIELD),		// -
 
-  // Extended arithmetric operations
+  // Extended arithmetic operations
   FVM_OP(ONE),			// -
   FVM_OP(ZERO),			// 1
   FVM_OP(TWO),			// 1 0
@@ -110,6 +121,70 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(TWO),			// 1
   FVM_OP(MAX),			// 1 2
   FVM_OP(EMPTY),		// 2
+  FVM_OP(YIELD),		// -
+
+  // Relational operations
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO_NOT_EQUALS),	// 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ONE),			// -
+  FVM_OP(ZERO_NOT_EQUALS),	// 1
+  FVM_OP(DROP),			// -1
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO_LESS),		// 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ONE),			// -
+  FVM_OP(ZERO_LESS),		// 1
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO_EQUALS),		// 0
+  FVM_OP(DROP),			// -1
+  FVM_OP(ONE),			// -
+  FVM_OP(ZERO_EQUALS),		// 1
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO_GREATER),		// 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ONE),			// -
+  FVM_OP(ZERO_GREATER),		// 1
+  FVM_OP(DROP),			// -1
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO),			// 0
+  FVM_OP(NOT_EQUALS),		// 0 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ONE),			// 0
+  FVM_OP(NOT_EQUALS),		// 0 1
+  FVM_OP(DROP),			// -1
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO),			// 0
+  FVM_OP(LESS),			// 0 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ONE),			// 0
+  FVM_OP(LESS),			// 0 1
+  FVM_OP(DROP),			// -1
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO),			// 0
+  FVM_OP(EQUALS),		// 0 0
+  FVM_OP(DROP),			// -1
+  FVM_OP(ZERO),			// -
+  FVM_OP(ONE),			// 0
+  FVM_OP(EQUALS),		// 0 1
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ZERO),			// 0
+  FVM_OP(GREATER),		// 0 0
+  FVM_OP(DROP),			// 0
+  FVM_OP(ZERO),			// -
+  FVM_OP(ONE),			// 0
+  FVM_OP(GREATER),		// 0 1
+  FVM_OP(DROP),			// 0
+  FVM_OP(YIELD),		// -
+
+  // Delay
+  FVM_LIT(100),			// -
+  FVM_OP(DELAY),		// 1000
   FVM_OP(HALT)			// -
 };
 
