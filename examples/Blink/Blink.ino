@@ -88,7 +88,7 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-#if 1
+#if 0
   task.trace(true);
 #endif
 }

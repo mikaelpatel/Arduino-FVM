@@ -900,7 +900,7 @@ int FVM::resume(task_t& task)
     tos = (*sp-- > tos) ? -1 : 0;
   NEXT();
 #else
-  // : > ( x>y: x y -- -1, else 0 ) - 0< ;
+  // : > ( x>y: x y -- -1, else 0 ) - 0> ;
   static const code_t GREATER_CODE[] PROGMEM = {
     FVM_OP(MINUS),
     FVM_OP(ZERO_GREATER),
@@ -1050,14 +1050,14 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 #else
-  // : . ( n -- ) dup 0< if '-' emit abs then u. space ;
+  // : . ( n -- ) dup 0< if '-' emit negate then u. space ;
   static const code_t DOT_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
-    FVM_OP(ZERO_BRANCH), 3,
+    FVM_OP(ZERO_BRANCH), 4,
       FVM_CLIT('-'),
       FVM_OP(EMIT),
-      FVM_OP(ABS),
+      FVM_OP(NEGATE),
     FVM_OP(U_DOT),
     FVM_OP(SPACE),
     FVM_OP(EXIT)
