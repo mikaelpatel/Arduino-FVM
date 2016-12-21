@@ -26,16 +26,23 @@
  * @section Foot-print
  * Bytes      Section
  * ------------------------------------------------
- *        1916 Startup, Serial and setup/loop
- *  +84   2000 +Blink sketch code and task
- *  +3056 5056 +Forth Virtual Machine
- *  +724  5780 +Kernel dictionary
- *  +976  6756 +Trace mode
+ *        1400 Baseline; Startup and Serial
+ *  +474  1874 +Measurement
+ *  +82   1956 +Blink sketch code and task
+ *  +3024 4980 +Forth Virtual Machine
+ *  +768  5748 +Kernel dictionary
+ *  +982  6730 +Trace mode
  * ------------------------------------------------
  * Arduino Uno/IDE 1.6.13
  */
 
-#if 1
+#define MEASURE
+#define BLINK_SKETCH
+#define BLINK_RUN
+#define BLINK_TRACE
+
+// Enable/disable virtual machine code
+#if defined(BLINK_SKETCH)
 #include "FVM.h"
 
 const int BLINK_FN = 0;
@@ -88,26 +95,33 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-#if 0
+
+  // Enable/disable trace
+#if defined(BLINK_TRACE)
   task.trace(true);
 #endif
 }
 
 void loop()
 {
-#if 0
-  static uint32_t count = 0;
+  // Enable/disable measurement
+#if defined(MEASURE)
   uint32_t start = micros();
 #endif
-#if 1
+
+  // Enable/disable resume (base-line foot-print)
+#if defined(BLINK_RUN)
   fvm.resume(task);
 #endif
-#if 0
-  uint32_t us = micros()-start;
-  Serial.print(count++);
+
+  // Enable/disable measurement
+#if defined(MEASURE)
+  uint32_t stop = micros();
+  uint32_t us = stop-start;
+  Serial.print(stop);
   Serial.print(':');
   Serial.println(us);
   Serial.flush();
-#endif
   delay(100);
+#endif
 }
