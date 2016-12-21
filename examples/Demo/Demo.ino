@@ -206,9 +206,8 @@ void setup()
   while (!Serial);
 
   Serial.println(F("FVM/Demo: started"));
-  Serial.print(F("sizeof(SKETCH_CODE) = "));
-  Serial.println(sizeof(SKETCH_CODE));
 
+  task.trace(true);
   fvm.execute(SKETCH_CODE, task);
   while (fvm.resume(task) > 0);
 }

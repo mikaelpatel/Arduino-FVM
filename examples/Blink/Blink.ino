@@ -88,19 +88,26 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
+#if 1
+  task.trace(true);
+#endif
 }
 
 void loop()
 {
+#if 0
   static uint32_t count = 0;
   uint32_t start = micros();
+#endif
 #if 1
   fvm.resume(task);
 #endif
+#if 0
   uint32_t us = micros()-start;
   Serial.print(count++);
   Serial.print(':');
   Serial.println(us);
   Serial.flush();
+#endif
   delay(100);
 }

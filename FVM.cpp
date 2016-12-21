@@ -103,21 +103,22 @@ int FVM::resume(task_t& task)
       ios.print(OPSTR(ir));
 #endif
     }
-    else continue;
     // Print stack contents
-    tmp = (sp - task.m_sp0);
-    ios.print(F(":["));
-    ios.print(tmp);
-    ios.print(F("]: "));
-    if (tmp > 0) {
-      data_t* tp = task.m_sp0 + 1;
-      while (--tmp) {
-	ios.print(*++tp);
-	ios.print(' ');
+    if (task.m_trace) {
+      tmp = (sp - task.m_sp0);
+      ios.print(F(":["));
+      ios.print(tmp);
+      ios.print(F("]: "));
+      if (tmp > 0) {
+	data_t* tp = task.m_sp0 + 1;
+	while (--tmp) {
+	  ios.print(*++tp);
+	  ios.print(' ');
+	}
+	ios.print(tos);
       }
-      ios.print(tos);
+      ios.println();
     }
-    ios.println();
   } while (ir < 0);
   // Flush output and start measurement
   ios.flush();
@@ -1144,23 +1145,26 @@ int FVM::resume(task_t& task)
   // Yield while waiting given number of milli-seconds
   OP(DELAY)
   // : delay ( ms -- )
-  //   millis +
+  //   millis >r
   //   begin
-  //     dup u<
+  //     millis r@ - over u<
   //   while
   //     yield
-  //   repeat drop ;
+  //   repeat
+  //   r> 2drop ;
   static const code_t DELAY_CODE[] PROGMEM = {
     FVM_OP(MILLIS),
-    FVM_OP(PLUS),
-      FVM_OP(DUP),
+    FVM_OP(TO_R),
       FVM_OP(MILLIS),
+      FVM_OP(R_FETCH),
+      FVM_OP(MINUS),
+      FVM_OP(OVER),
       FVM_OP(U_LESS),
-      FVM_OP(NOT),
     FVM_OP(ZERO_BRANCH), 3,
       FVM_OP(YIELD),
-    FVM_OP(BRANCH), -9,
-    FVM_OP(DROP),
+    FVM_OP(BRANCH), -10,
+    FVM_OP(R_FROM),
+    FVM_OP(TWO_DROP),
     FVM_OP(EXIT)
   };
   CALL(DELAY_CODE);

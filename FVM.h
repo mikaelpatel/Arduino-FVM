@@ -263,7 +263,7 @@ class FVM {
       m_dp(m_dp0),
       m_ios(ios),
       m_base(10),
-      m_trace(true)
+      m_trace(false)
     {}
 
     void push(data_t value)
@@ -277,6 +277,11 @@ class FVM {
     {
       if (m_sp == m_sp0) return (0);
       return (*m_sp--);
+    }
+
+    void trace(bool flag)
+    {
+      m_trace = flag;
     }
 
     task_t& call(code_P fn)
