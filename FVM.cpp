@@ -30,7 +30,7 @@
 #define FNTAB(n) (code_P) pgm_read_word(fntab-n-1)
 #define CALL(fn) tp = fn; goto FNCALL
 #define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(&fnstr[-ir-1])
-#define OPSTR(if) (const __FlashStringHelper*) pgm_read_word(&opstr[ir])
+#define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(&opstr[ir])
 
 int FVM::lookup(const char* name)
 {
@@ -1116,6 +1116,14 @@ int FVM::resume(task_t& task)
   CALL(DOT_S_CODE);
 #endif
 
+  // .name ( x -- )
+  // Print operation/function name
+  OP(DOT_NAME)
+    ios.print(tos < 0 ? FNSTR(tos) : OPSTR(tos));
+    ios.print(' ');
+    tos = *sp--;
+  NEXT();
+
   // fncall ( -- )
   // Call internal function (pointer in tp)
   FNCALL:
@@ -1350,6 +1358,7 @@ static const char SPACES_PSTR[] PROGMEM = "spaces";
 static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
+static const char DOT_NAME_PSTR[] PROGMEM = ".name";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1459,6 +1468,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) U_DOT_PSTR,
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
+  (str_P) DOT_NAME_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,

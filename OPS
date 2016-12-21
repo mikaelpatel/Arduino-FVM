@@ -93,9 +93,10 @@
     OP_U_DOT,			// Print top of stack as unsigned
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
+    OP_DOT_NAME,		// Print operation/function name
     OP_MICROS,			// Micro-seconds
     OP_MILLIS,			// Milli-seconds
-    OP_DELAY,			// Delay for given number of milli-seconds
+    OP_DELAY,			// Delay milli-seconds (yield)
     OP_PINMODE,			// Digital pin mode
     OP_DIGITALREAD,		// Read digital pin
     OP_DIGITALWRITE,		// Write digital pin

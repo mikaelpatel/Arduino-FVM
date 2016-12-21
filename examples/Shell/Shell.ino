@@ -43,6 +43,7 @@ void loop()
 {
   // Scan buffer for a single word or number
   char buffer[32];
+  char pad[32];
   char* bp = buffer;
   char c;
 
@@ -60,6 +61,12 @@ void loop()
    } while (c > ' ');
   *bp = 0;
 
+  // Check for operation/function name
+  if (buffer[0] == '\\') {
+    strcpy(pad, buffer+1);
+    task.push((int) pad);
+  }
   // Lookup and execute
-  fvm.execute(buffer, task);
+  else
+    fvm.execute(buffer, task);
 }
