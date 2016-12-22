@@ -27,6 +27,9 @@
 #include "FVM.h"
 
 const int SKETCH_FN = 0;
+const int MESSAGE_INDEX = 130 + SKETCH_FN;
+
+const char MESSAGE_PSTR[] PROGMEM = "message";
 const char SKETCH_PSTR[] PROGMEM = "sketch";
 const FVM::code_t SKETCH_CODE[] PROGMEM = {
   // Stack operations
@@ -182,6 +185,25 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(DROP),			// 0
   FVM_OP(YIELD),		// -
 
+  // Print operation/function name
+  FVM_OP(FALSE),		// -
+  FVM_OP(TRACE),		// 0
+  FVM_CLIT(FVM::OP_SWAP),	// -
+  FVM_OP(DOT_NAME),		// 32
+  FVM_OP(DROP),			// 4
+  FVM_OP(SPACE),		// 4
+  FVM_LIT(128),			// -
+  FVM_OP(DOT_NAME),		// 128
+  FVM_OP(DROP),			// 5
+  FVM_OP(SPACE),		// 4
+  FVM_LIT(MESSAGE_INDEX),	// -
+  FVM_OP(DOT_NAME),		// 129
+  FVM_OP(DROP),			// 6
+  FVM_OP(CR),			// 4
+  FVM_OP(YIELD),		// -
+  FVM_OP(TRUE),			// -1
+  FVM_OP(TRACE),		// -
+
   // Delay
   FVM_LIT(100),			// -
   FVM_OP(DELAY),		// 1000
@@ -194,21 +216,21 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
 
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) SKETCH_PSTR,
+  0,
+  (str_P) MESSAGE_PSTR,
   0
 };
 
 FVM fvm;
-FVM::task_t task(Serial);
+FVM::task_t task(Serial, SKETCH_CODE);
 
 void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-
   Serial.println(F("FVM/Demo: started"));
 
   task.trace(true);
-  fvm.execute(SKETCH_CODE, task);
   while (fvm.resume(task) > 0);
 }
 

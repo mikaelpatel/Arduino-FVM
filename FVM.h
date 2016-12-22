@@ -38,11 +38,6 @@
 #define FVM_DICT
 
 /**
- * Enable extended instruction set.
- */
-#define FVM_ARDUINO
-
-/**
  * Compile virtual machine instruction.
  * @param[in] code operation code.
  */
@@ -56,6 +51,11 @@
   FVM::OP_LITERAL,							\
   FVM::code_t((n) >> 8),						\
   FVM::code_t(n)
+
+/**
+ * Compile literal number/character.
+ * @param[in] n number.
+ */
 #define FVM_CLIT(n)							\
   FVM::OP_C_LITERAL,							\
   FVM::code_t(n)
@@ -80,12 +80,11 @@ class FVM {
     OP_EXIT,			// Function return
     OP_LITERAL,			// Inline literal constant
     OP_C_LITERAL,		// Inline literal signed character constant
+    OP_S_LITERAL,	        // Push instruction pointer and branch always
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
     OP_EXECUTE,			// Execute operation or function
     OP_TRACE,			// Set trace mode
-    OP_YIELD,			// Yield virtual machine
-    OP_HALT,			// Halt virtual machine
 
     /*
      * Memory access
@@ -108,6 +107,7 @@ class FVM {
     OP_TO_R,			// Push data on return stack
     OP_R_FROM,			// Pop data from return stack
     OP_R_FETCH,			// Copy from return stack
+    OP_QR,			// Decrement top of return stack
 
     /*
      * Parameter stack
@@ -213,6 +213,7 @@ class FVM {
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_DOT_NAME,		// Print operation/function name
+    OP_WORDS,			// Print list of operations/functions
 
     /*
      * Arduino extensions
@@ -226,6 +227,12 @@ class FVM {
     OP_DIGITALTOGGLE,		// Toggle digital pin
     OP_ANALOGREAD,		// Read analog pin
     OP_ANALOGWRITE,		// Write pwm pin
+
+    /*
+     * High-level control
+     */
+    OP_HALT,			// Halt virtual machine
+    OP_YIELD,			// Yield virtual machine
 
     /*
      * Last operation code

@@ -23,23 +23,23 @@
  * @section Description
  * Classical blink sketch using the Forth Virtual Machine (FVM).
  *
- * @section Foot-print
+ * @section Analysis
  * Bytes      Section
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
- *  +82   1956 +Blink sketch code and task
- *  +3137 5092 +Forth Virtual Machine
- *  +732  5824 +Kernel dictionary
- *  +970  6794 +Trace mode
+ *  +88   1962 +Blink sketch code and task
+ *  +3240 5202 +Forth Virtual Machine
+ *  +756  5958 +Kernel dictionary
+ *  +974  6932 +Trace mode
  * ------------------------------------------------
  * Arduino Uno/IDE 1.6.13
  */
 
 #define MEASURE
 #define BLINK_SKETCH
-#define BLINK_RUN
 #define BLINK_TRACE
+#define BLINK_RUN
 
 // Enable/disable virtual machine code
 #if defined(BLINK_SKETCH)

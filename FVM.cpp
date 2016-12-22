@@ -25,7 +25,7 @@
 
 // Forth Virtual Machine support macros
 #define NEXT() goto INNER
-#define OP(n) case OP_ ## n: asm("# OP(" # n ")");
+#define OP(n) case OP_ ## n:
 #define FETCH(ip) pgm_read_byte(ip)
 #define FNTAB(n) (code_P) pgm_read_word(fntab-n-1)
 #define CALL(fn) tp = fn; goto FNCALL
@@ -38,8 +38,8 @@ int FVM::lookup(const char* name)
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
   for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
-    if (!strcmp_P(name, s)) return (-i-1);
-  return (0);
+    if (!strcmp_P(name, s)) return (i+128);
+  return (-1);
 }
 
 int FVM::resume(task_t& task)
@@ -148,6 +148,12 @@ int FVM::resume(task_t& task)
     tos = (int8_t) FETCH(ip++);
   NEXT();
 
+  // (sliteral) ( -- addr )
+  // Push pointer to literal and branch
+  OP(S_LITERAL)
+    *++sp = tos;
+    tos = (data_t) ip + 1;
+
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127)
   OP(BRANCH)
@@ -166,12 +172,12 @@ int FVM::resume(task_t& task)
   // execute ( n -- )
   // Execute primitive or function (as returned by lookup)
   OP(EXECUTE)
-    if (tos > 0) {
+    if (tos < 128) {
       ir = tos;
       tos = *sp--;
       goto DISPATCH;
     }
-    else if (tos < 0) {
+    else {
       *++rp = ip;
       ip = FNTAB(tos);
       tos = *sp--;
@@ -181,9 +187,7 @@ int FVM::resume(task_t& task)
   // trace ( x -- )
   // Set trace mode.
   OP(TRACE)
-#if defined(FVM_TRACE)
     task.m_trace = tos;
-#endif
     tos = *sp--;
   NEXT();
 
@@ -349,6 +353,21 @@ int FVM::resume(task_t& task)
   OP(R_FETCH)
     *++sp = tos;
     tos = (data_t) *rp;
+  NEXT();
+
+  // ?r ( rp: x -- x-1/0, rp: 1 -- /-1 )
+  // Decrement top of return stack and check zero
+  OP(QR)
+    *++sp = tos;
+    tmp = ((data_t) *rp) - 1;
+    if (tmp != 0) {
+      *rp = (code_t*) tmp;
+      tos = 0;
+    }
+    else {
+      rp -= 1;
+      tos = -1;
+    }
   NEXT();
 
   // depth ( -- n )
@@ -1114,38 +1133,84 @@ int FVM::resume(task_t& task)
   CALL(DOT_S_CODE);
 #endif
 
-  // .name ( x -- )
+  // .name ( x -- length )
   // Print operation/function name
   OP(DOT_NAME)
-    ios.print(tos < 0 ? FNSTR(tos) : OPSTR(tos));
-    ios.print(' ');
-    tos = *sp--;
+  {
+    const __FlashStringHelper* s = NULL;
+    if (tos < 128)
+      s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
+    else if (tos < 255)
+      s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-128]);
+    tos = (s != NULL) ? ios.print(s) : 0;
+  }
   NEXT();
 
-  // fncall ( -- )
-  // Call internal function (pointer in tp)
-  FNCALL:
-    *++rp = ip;
-    ip = tp;
-
-  // nop ( -- )
-  // No operation
-  OP(NOP)
+  // words ( -- )
+  // Print list of operations/functions
+  OP(WORDS)
+#if 0
+  {
+    const char* s;
+    int len;
+    int j = 0;
+    for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++) {
+      ios.print((const __FlashStringHelper*) s);
+      if (++j % 5 == 0)
+	ios.println();
+      else {
+	len = 16 - strlen_P(s);
+	while (len-- > 0) ios.print(' ');
+      }
+    }
+    for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++) {
+      ios.print((const __FlashStringHelper*) s);
+      if (++j % 5 == 0)
+	ios.println();
+      else {
+	len = 16 - strlen_P(s);
+	while (len-- > 0) ios.print(' ');
+      }
+    }
+  }
   NEXT();
-
-  // halt ( -- )
-  // Halt virtual machine and save context
-  OP(HALT)
-    ip -= 1;
-
-  // yield ( -- )
-  // Yield virtual machine and save context
-  OP(YIELD)
-    if (sp != task.m_sp0) *++sp = tos;
-    task.m_sp = sp;
-    task.m_ip = ip;
-    task.m_rp = rp;
-  return (ir == OP_YIELD);
+#else
+  // NOTE: Forth implementation only lists words in kernel dictionary.
+  // Application words are currently not listed.
+  // : words ( -- )
+  //   0
+  //   begin
+  //     dup .name ?dup
+  //   while
+  //     16 swap - spaces
+  //     1+ dup 5 mod not
+  //     if cr then
+  //   repeat
+  //   cr drop ;
+  static const code_t WORDS_CODE[] PROGMEM = {
+    FVM_OP(ZERO),
+      FVM_OP(DUP),
+      FVM_OP(DOT_NAME),
+      FVM_OP(QDUP),
+    FVM_OP(ZERO_BRANCH), 16,
+      FVM_CLIT(16),
+      FVM_OP(SWAP),
+      FVM_OP(MINUS),
+      FVM_OP(SPACES),
+      FVM_OP(ONE_PLUS),
+      FVM_OP(DUP),
+      FVM_CLIT(5),
+      FVM_OP(MOD),
+      FVM_OP(NOT),
+    FVM_OP(ZERO_BRANCH), -18,
+      FVM_OP(CR),
+    FVM_OP(BRANCH), -21,
+    FVM_OP(CR),
+    FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(WORDS_CODE);
+#endif
 
   // delay ( ms -- )
   // Yield while waiting given number of milli-seconds
@@ -1175,7 +1240,6 @@ int FVM::resume(task_t& task)
   };
   CALL(DELAY_CODE);
 
-#if defined(FVM_ARDUINO)
   // micros ( -- us )
   // Micro-seconds
   OP(MICROS)
@@ -1229,7 +1293,34 @@ int FVM::resume(task_t& task)
     analogWrite(tos, *sp--);
     tos = *sp--;
   NEXT();
-#endif
+
+  // halt ( -- )
+  // Halt virtual machine and save context
+  OP(HALT)
+    ip -= 1;
+
+  // yield ( -- )
+  // Yield virtual machine and save context
+  OP(YIELD)
+    if (sp != task.m_sp0) *++sp = tos;
+    task.m_sp = sp;
+    task.m_ip = ip;
+    task.m_rp = rp;
+  return (ir == OP_YIELD);
+
+  // fncall ( -- )
+  // Call internal function (pointer in tp)
+  FNCALL:
+    *++rp = ip;
+    ip = tp;
+
+  // nop ( -- )
+  // No operation
+  OP(NOP)
+  NEXT();
+
+  default:
+    ;
   }
   return (-1);
 }
@@ -1253,7 +1344,7 @@ int FVM::execute(code_t op, task_t& task)
 int FVM::execute(const char* name, task_t& task)
 {
   int op = lookup(name);
-  if (op == 0) {
+  if (op == -1) {
     task.push(atoi(name));
     op = OP_NOP;
   }
@@ -1264,12 +1355,11 @@ int FVM::execute(const char* name, task_t& task)
 static const char EXIT_PSTR[] PROGMEM = "exit";
 static const char LITERAL_PSTR[] PROGMEM = "(literal)";
 static const char C_LITERAL_PSTR[] PROGMEM = "(cliteral)";
+static const char S_LITERAL_PSTR[] PROGMEM = "(sliteral)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
 static const char ZERO_BRANCH_PSTR[] PROGMEM = "(0branch)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
 static const char TRACE_PSTR[] PROGMEM = "trace";
-static const char YIELD_PSTR[] PROGMEM = "yield";
-static const char HALT_PSTR[] PROGMEM = "halt";
 static const char C_FETCH_PSTR[] PROGMEM = "c@";
 static const char C_STORE_PSTR[] PROGMEM = "c!";
 static const char FETCH_PSTR[] PROGMEM = "@";
@@ -1284,6 +1374,7 @@ static const char CELLS_PSTR[] PROGMEM = "cells";
 static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
+static const char QR_PSTR[] PROGMEM = "?r";
 static const char DEPTH_PSTR[] PROGMEM = "depth";
 static const char DROP_PSTR[] PROGMEM = "drop";
 static const char NIP_PSTR[] PROGMEM = "nip";
@@ -1357,6 +1448,7 @@ static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
+static const char WORDS_PSTR[] PROGMEM = "words";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1366,6 +1458,8 @@ static const char DIGITALWRITE_PSTR[] PROGMEM = "digitalwrite";
 static const char DIGITALTOGGLE_PSTR[] PROGMEM = "digitaltoggle";
 static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
+static const char HALT_PSTR[] PROGMEM = "halt";
+static const char YIELD_PSTR[] PROGMEM = "yield";
 static const char NOP_PSTR[] PROGMEM = "nop";
 #endif
 
@@ -1374,12 +1468,11 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) EXIT_PSTR,
   (str_P) LITERAL_PSTR,
   (str_P) C_LITERAL_PSTR,
+  (str_P) S_LITERAL_PSTR,
   (str_P) BRANCH_PSTR,
   (str_P) ZERO_BRANCH_PSTR,
   (str_P) EXECUTE_PSTR,
   (str_P) TRACE_PSTR,
-  (str_P) YIELD_PSTR,
-  (str_P) HALT_PSTR,
   (str_P) C_FETCH_PSTR,
   (str_P) C_STORE_PSTR,
   (str_P) FETCH_PSTR,
@@ -1394,6 +1487,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) TO_R_PSTR,
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
+  (str_P) QR_PSTR,
   (str_P) DEPTH_PSTR,
   (str_P) DROP_PSTR,
   (str_P) NIP_PSTR,
@@ -1467,6 +1561,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) DOT_NAME_PSTR,
+  (str_P) WORDS_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,
@@ -1476,6 +1571,8 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DIGITALTOGGLE_PSTR,
   (str_P) ANALOGREAD_PSTR,
   (str_P) ANALOGWRITE_PSTR,
+  (str_P) HALT_PSTR,
+  (str_P) YIELD_PSTR,
   (str_P) NOP_PSTR,
 #endif
   0
