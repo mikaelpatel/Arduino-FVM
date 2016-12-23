@@ -248,22 +248,29 @@ class FVM {
   typedef const PROGMEM code_t* code_P;
 
   struct task_t {
+    // Default data area and stack sizes
     static const int SP0_MAX = 32;
     static const int RP0_MAX = 16;
     static const int DP0_MAX = 64;
 
-    code_P m_ip;
-    code_P* m_rp;
-    data_t* m_sp;
-    uint8_t* m_dp;
-    Stream& m_ios;
-    data_t m_base;
-    bool m_trace;
+    code_P m_ip;		// Instruction pointer
+    code_P* m_rp;		// Return stack pointer
+    data_t* m_sp;		// Parameter stack pointer
+    uint8_t* m_dp;		// Data allocation pointer
+    Stream& m_ios;		// Input/Output stream
+    data_t m_base;		// Number conversion base
+    bool m_trace;		// Trace mode
 
-    uint8_t m_dp0[DP0_MAX];
-    data_t m_sp0[SP0_MAX];
-    const code_t* m_rp0[RP0_MAX];
+    uint8_t m_dp0[DP0_MAX];	// Data area
+    data_t m_sp0[SP0_MAX];	// Parameter stack
+    code_P m_rp0[RP0_MAX];	// Return stack
 
+    /**
+     * Construct task with given in-/output stream and function
+     * pointer.
+     * @param[in] ios in-/output stream.
+     * @param[in] fn function pointer (default none).
+     */
     task_t(Stream& ios, code_P fn = 0) :
       m_ip(fn),
       m_rp(m_rp0),
@@ -274,6 +281,10 @@ class FVM {
       m_trace(false)
     {}
 
+    /**
+     * Push value to parameter stack.
+     * @param[in] value to push.
+     */
     void push(data_t value)
     {
       data_t* sp = m_sp + (m_sp == m_sp0);
@@ -281,17 +292,30 @@ class FVM {
       m_sp = sp;
     }
 
+    /**
+     * Pop value from parameter stack.
+     * @return value.
+     */
     data_t pop()
     {
       if (m_sp == m_sp0) return (0);
       return (*m_sp--);
     }
 
+    /**
+     * Enable/disable trace mode.
+     * @param[in] flag trace mode.
+     */
     void trace(bool flag)
     {
       m_trace = flag;
     }
 
+    /**
+     * Set task instruction pointer to given function pointer.
+     * @param[in] fn function pointer.
+     * @return task reference.
+     */
     task_t& call(code_P fn)
     {
       m_ip = fn;
@@ -341,7 +365,7 @@ class FVM {
    */
   int execute(const char* name, task_t& task);
 
-  // Function code and name table provided by sketch
+  // Function code and dictionary provided by sketch
   static const code_P fntab[] PROGMEM;
   static const str_P fnstr[] PROGMEM;
 

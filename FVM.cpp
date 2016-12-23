@@ -35,10 +35,16 @@
 int FVM::lookup(const char* name)
 {
   const char* s;
+
+  // Search kernel dictionary, return index
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
+
+  // Search sketch dictionary, return adjusted index
   for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i+128);
+
+  // Return error code
   return (-1);
 }
 
