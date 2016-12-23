@@ -1040,12 +1040,7 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 #else
-  // : spaces ( n -- )
-  //   begin
-  //     ?dup
-  //   while
-  //     space 1-
-  //   repeat ;
+  // : spaces ( n -- ) begin ?dup while space 1- repeat ;
   static const code_t SPACES_CODE[] PROGMEM = {
       FVM_OP(QDUP),
     FVM_OP(ZERO_BRANCH), 4,
@@ -1073,8 +1068,14 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 #else
-  // : . ( n -- ) dup 0< if '-' emit negate then u. space ;
+  // : . ( n -- )
+  // base @ 10 = if dup 0< if '-' emit negate then then u. space ;
   static const code_t DOT_CODE[] PROGMEM = {
+    FVM_OP(BASE),
+    FVM_OP(FETCH),
+    FVM_CLIT(10),
+    FVM_OP(EQUALS),
+    FVM_OP(ZERO_BRANCH), 8,
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
     FVM_OP(ZERO_BRANCH), 4,
@@ -1109,11 +1110,7 @@ int FVM::resume(task_t& task)
 #else
   // : .s ( -- )
   // depth dup '[' emit u. ']' emit ':' emit space
-  // begin
-  //   ?dup
-  // while
-  //   dup pick . 1-
-  // repeat
+  // begin ?dup while dup pick . 1- repeat
   // cr ;
   static const code_t DOT_S_CODE[] PROGMEM = {
     FVM_OP(DEPTH),
