@@ -376,7 +376,14 @@ int FVM::resume(task_t& task)
     }
   NEXT();
 
-  // depth ( -- n )
+  // sp ( -- addr )
+  // Push stack pointer
+  OP(SP)
+    *++sp = tos;
+    tos = (data_t) sp;
+  NEXT();
+
+  // depth ( x1..xn -- x1..xn n )
   // Push depth of data stack
   OP(DEPTH)
     tmp = (sp - task.m_sp0);
@@ -461,7 +468,7 @@ int FVM::resume(task_t& task)
   CALL(TUCK_CODE);
 #endif
 
-  // pick ( xn..x0 i -- xn..x0 xi )
+  // pick ( x0..xn n -- x0..xn x0 )
   // Duplicate index stack element to top of stack
   OP(PICK)
     tos = *(sp - tos);
@@ -503,15 +510,14 @@ int FVM::resume(task_t& task)
   CALL(MINUS_ROT_CODE);
 #endif
 
-  // roll ( xn..x0 n -- xn..x0 x0 )
+  // roll ( x0..xn n -- x1..xn x0 )
   // Rotate up stack elements
   OP(ROLL)
-    if (tos > 0) {
-      sp[0] = sp[-tos];
-      for (; tos > 0; tos--)
-	sp[-tos] = sp[-tos + 1];
-    }
-    tos = *sp--;
+    tmp = tos;
+    tos = sp[-tmp];
+    for (; tmp > 0; tmp--)
+      sp[-tmp] = sp[-tmp + 1];
+    sp -= 1;
   NEXT();
 
   // : 2swap ( x1 x2 y1 y2 -- y1 y2 x1 x2 ) rot >r rot r> ;
@@ -536,16 +542,14 @@ int FVM::resume(task_t& task)
   };
   CALL(TWO_DUP_CODE);
 
-  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) >r >r 2dup r> r> 2swap ;
+  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) 3 pick 3 pick ;
   // Duplicate double next top of stack
   OP(TWO_OVER)
   static const code_t TWO_OVER_CODE[] PROGMEM = {
-    FVM_OP(TO_R),
-    FVM_OP(TO_R),
-    FVM_OP(TWO_DUP),
-    FVM_OP(R_FROM),
-    FVM_OP(R_FROM),
-    FVM_OP(TWO_SWAP),
+    FVM_CLIT(3),
+    FVM_OP(PICK),
+    FVM_CLIT(3),
+    FVM_OP(PICK),
     FVM_OP(EXIT)
   };
   CALL(TWO_OVER_CODE);
@@ -1378,6 +1382,7 @@ static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
 static const char QR_PSTR[] PROGMEM = "?r";
+static const char SP_PSTR[] PROGMEM = "sp";
 static const char DEPTH_PSTR[] PROGMEM = "depth";
 static const char DROP_PSTR[] PROGMEM = "drop";
 static const char NIP_PSTR[] PROGMEM = "nip";
@@ -1491,6 +1496,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
   (str_P) QR_PSTR,
+  (str_P) SP_PSTR,
   (str_P) DEPTH_PSTR,
   (str_P) DROP_PSTR,
   (str_P) NIP_PSTR,

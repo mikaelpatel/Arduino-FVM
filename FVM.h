@@ -112,6 +112,7 @@ class FVM {
     /*
      * Parameter stack
      */
+    OP_SP,			// Stack pointer
     OP_DEPTH,			// Number of elements
     OP_DROP,			// Drop top of stack
     OP_NIP,			// Drop next top of stack

@@ -21,6 +21,7 @@
     OP_R_FROM,			// Pop data from return stack
     OP_R_FETCH,			// Copy from return stack
     OP_QR,			// Decrement top of return stack
+    OP_SP,			// Stack pointer
     OP_DEPTH,			// Number of elements
     OP_DROP,			// Drop top of stack
     OP_NIP,			// Drop next top of stack
