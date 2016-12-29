@@ -160,6 +160,14 @@ int FVM::resume(task_t& task)
     *++sp = tos;
     tos = (data_t) ip + 1;
 
+  // (param) ( x0..xn -- x0..xn x0 )
+  // Duplicate inline index stack element to top of stack
+  OP(PARAM)
+    *++sp = tos;
+    ir = (int8_t) FETCH(ip++);
+    tos = *(sp - ir);
+  NEXT();
+
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127)
   OP(BRANCH)
@@ -426,10 +434,9 @@ int FVM::resume(task_t& task)
     *++sp = tos;
   NEXT();
 #else
-  // : dup ( x x -- x x ) 0 pick ;
+  // : dup ( x x -- x x ) param: 0  ;
   static const code_t DUP_CODE[] PROGMEM = {
-    FVM_OP(ZERO),
-    FVM_OP(PICK),
+    FVM_OP(PARAM), 0,
     FVM_OP(EXIT)
   };
   CALL(DUP_CODE);
@@ -461,10 +468,9 @@ int FVM::resume(task_t& task)
     tos = tmp;
   NEXT();
 #else
-  // : over ( x y -- x y x ) 1 pick ;
+  // : over ( x y -- x y x ) param: 1 ;
   static const code_t OVER_CODE[] PROGMEM = {
-    FVM_OP(ONE),
-    FVM_OP(PICK),
+    FVM_OP(PARAM), 1,
     FVM_OP(EXIT)
   };
   CALL(OVER_CODE);
@@ -582,14 +588,12 @@ int FVM::resume(task_t& task)
   };
   CALL(TWO_DUP_CODE);
 
-  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) 3 pick 3 pick ;
+  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) param: 3 param: 3 ;
   // Duplicate double next top of stack
   OP(TWO_OVER)
   static const code_t TWO_OVER_CODE[] PROGMEM = {
-    FVM_CLIT(3),
-    FVM_OP(PICK),
-    FVM_CLIT(3),
-    FVM_OP(PICK),
+    FVM_OP(PARAM), 3,
+    FVM_OP(PARAM), 3,
     FVM_OP(EXIT)
   };
   CALL(TWO_OVER_CODE);
@@ -871,7 +875,7 @@ int FVM::resume(task_t& task)
 #endif
 
   // bool ( x<>0: x -- TRUE, else FALSE )
-  // Covert top of stack to boolean (alias 0<>)
+  // Convert top of stack to boolean (alias 0<>)
   OP(BOOL)
 
   // 0<> ( x<>0: x -- -1, else 0 )
@@ -897,7 +901,7 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // not ( x==0: x -- -1, else 0 )
-  // Covert top of stack to invert boolean (alias 0=)
+  // Convert top of stack to invert boolean (alias 0=)
   OP(NOT)
 
   // 0= ( x==0: x -- -1, else 0 )
@@ -988,6 +992,72 @@ int FVM::resume(task_t& task)
     tos = lookup((const char*) tos);
   NEXT();
 
+  // words ( -- )
+  // Print list of operations/functions
+  OP(WORDS)
+#if 0
+  {
+    const char* s;
+    int len;
+    int j = 0;
+    for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++) {
+      ios.print((const __FlashStringHelper*) s);
+      if (++j % 5 == 0)
+	ios.println();
+      else {
+	len = 16 - strlen_P(s);
+	while (len-- > 0) ios.print(' ');
+      }
+    }
+    for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++) {
+      ios.print((const __FlashStringHelper*) s);
+      if (++j % 5 == 0)
+	ios.println();
+      else {
+	len = 16 - strlen_P(s);
+	while (len-- > 0) ios.print(' ');
+      }
+    }
+  }
+  NEXT();
+#else
+  // NOTE: Forth implementation only lists words in kernel dictionary.
+  // Application words are currently not listed.
+  // : words ( -- )
+  //   0
+  //   begin
+  //     dup .name ?dup
+  //   while
+  //     16 swap - spaces
+  //     1+ dup 5 mod not
+  //     if cr then
+  //   repeat
+  //   cr drop ;
+  static const code_t WORDS_CODE[] PROGMEM = {
+    FVM_OP(ZERO),
+      FVM_OP(DUP),
+      FVM_OP(DOT_NAME),
+      FVM_OP(QDUP),
+    FVM_OP(ZERO_BRANCH), 16,
+      FVM_CLIT(16),
+      FVM_OP(SWAP),
+      FVM_OP(MINUS),
+      FVM_OP(SPACES),
+      FVM_OP(ONE_PLUS),
+      FVM_OP(DUP),
+      FVM_CLIT(5),
+      FVM_OP(MOD),
+      FVM_OP(NOT),
+    FVM_OP(ZERO_BRANCH), -18,
+      FVM_OP(CR),
+    FVM_OP(BRANCH), -21,
+    FVM_OP(CR),
+    FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(WORDS_CODE);
+#endif
+
   // base ( -- addr )
   // Number conversion base.
   OP(BASE)
@@ -1029,13 +1099,29 @@ int FVM::resume(task_t& task)
   CALL(DECIMAL_CODE);
 #endif
 
-  // key ( -- c )
-  // Read character
-  OP(KEY)
-    while (!ios.available()) yield();
+  // ?key ( -- c/0, -1 )
+  // Read character if available
+  OP(QKEY)
     *++sp = tos;
-    tos = ios.read();
+    if (ios.available()) {
+      *++sp = ios.read();
+      tos = 0;
+    }
+    else
+      tos = -1;
   NEXT();
+
+  // key ( -- c ) begin ?key while yield repeat ;
+  // Wait for character and read
+  OP(KEY)
+  static const code_t KEY_CODE[] PROGMEM = {
+    FVM_OP(QKEY),
+    FVM_OP(ZERO_BRANCH), 3,
+    FVM_OP(YIELD),
+    FVM_OP(BRANCH), -6,
+    FVM_OP(EXIT)
+  };
+  CALL(KEY_CODE);
 
   // emit ( c -- )
   // Print character
@@ -1193,72 +1279,6 @@ int FVM::resume(task_t& task)
   }
   NEXT();
 
-  // words ( -- )
-  // Print list of operations/functions
-  OP(WORDS)
-#if 0
-  {
-    const char* s;
-    int len;
-    int j = 0;
-    for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++) {
-      ios.print((const __FlashStringHelper*) s);
-      if (++j % 5 == 0)
-	ios.println();
-      else {
-	len = 16 - strlen_P(s);
-	while (len-- > 0) ios.print(' ');
-      }
-    }
-    for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++) {
-      ios.print((const __FlashStringHelper*) s);
-      if (++j % 5 == 0)
-	ios.println();
-      else {
-	len = 16 - strlen_P(s);
-	while (len-- > 0) ios.print(' ');
-      }
-    }
-  }
-  NEXT();
-#else
-  // NOTE: Forth implementation only lists words in kernel dictionary.
-  // Application words are currently not listed.
-  // : words ( -- )
-  //   0
-  //   begin
-  //     dup .name ?dup
-  //   while
-  //     16 swap - spaces
-  //     1+ dup 5 mod not
-  //     if cr then
-  //   repeat
-  //   cr drop ;
-  static const code_t WORDS_CODE[] PROGMEM = {
-    FVM_OP(ZERO),
-      FVM_OP(DUP),
-      FVM_OP(DOT_NAME),
-      FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 16,
-      FVM_CLIT(16),
-      FVM_OP(SWAP),
-      FVM_OP(MINUS),
-      FVM_OP(SPACES),
-      FVM_OP(ONE_PLUS),
-      FVM_OP(DUP),
-      FVM_CLIT(5),
-      FVM_OP(MOD),
-      FVM_OP(NOT),
-    FVM_OP(ZERO_BRANCH), -18,
-      FVM_OP(CR),
-    FVM_OP(BRANCH), -21,
-    FVM_OP(CR),
-    FVM_OP(DROP),
-    FVM_OP(EXIT)
-  };
-  CALL(WORDS_CODE);
-#endif
-
   // delay ( ms -- )
   // Yield while waiting given number of milli-seconds
   OP(DELAY)
@@ -1403,6 +1423,7 @@ static const char EXIT_PSTR[] PROGMEM = "exit";
 static const char LITERAL_PSTR[] PROGMEM = "(literal)";
 static const char C_LITERAL_PSTR[] PROGMEM = "(cliteral)";
 static const char S_LITERAL_PSTR[] PROGMEM = "(sliteral)";
+static const char PARAM_PSTR[] PROGMEM = "(param)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
 static const char ZERO_BRANCH_PSTR[] PROGMEM = "(0branch)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
@@ -1484,9 +1505,11 @@ static const char ABS_PSTR[] PROGMEM = "abs";
 static const char MIN_PSTR[] PROGMEM = "min";
 static const char MAX_PSTR[] PROGMEM = "max";
 static const char LOOKUP_PSTR[] PROGMEM = "lookup";
+static const char WORDS_PSTR[] PROGMEM = "words";
 static const char BASE_PSTR[] PROGMEM = "base";
 static const char HEX_PSTR[] PROGMEM = "hex";
 static const char DECIMAL_PSTR[] PROGMEM = "decimal";
+static const char QKEY_PSTR[] PROGMEM = "?key";
 static const char KEY_PSTR[] PROGMEM = "key";
 static const char EMIT_PSTR[] PROGMEM = "emit";
 static const char CR_PSTR[] PROGMEM = "cr";
@@ -1496,7 +1519,6 @@ static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
-static const char WORDS_PSTR[] PROGMEM = "words";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1517,6 +1539,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LITERAL_PSTR,
   (str_P) C_LITERAL_PSTR,
   (str_P) S_LITERAL_PSTR,
+  (str_P) PARAM_PSTR,
   (str_P) BRANCH_PSTR,
   (str_P) ZERO_BRANCH_PSTR,
   (str_P) EXECUTE_PSTR,
@@ -1598,9 +1621,11 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) GREATER_PSTR,
   (str_P) U_LESS_PSTR,
   (str_P) LOOKUP_PSTR,
+  (str_P) WORDS_PSTR,
   (str_P) BASE_PSTR,
   (str_P) HEX_PSTR,
   (str_P) DECIMAL_PSTR,
+  (str_P) QKEY_PSTR,
   (str_P) KEY_PSTR,
   (str_P) EMIT_PSTR,
   (str_P) CR_PSTR,
@@ -1610,7 +1635,6 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) DOT_NAME_PSTR,
-  (str_P) WORDS_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,

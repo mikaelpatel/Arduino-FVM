@@ -27,44 +27,17 @@
 #include <Arduino.h>
 
 /**
- * Enable symbolic trace of virtual machine instruction cycle.
+ * Enable symbolic trace of virtual machine instruction cycle. Print
+ * execute time, instruction pointer, operation code and stack
+ * contents.
  */
 #define FVM_TRACE
 
 /**
- * Enable kernel dictionary. Reduce foot-print for non-interactive
- * application.
+ * Enable kernel dictionary. Remove to reduce foot-print for
+ * non-interactive application.
  */
 #define FVM_DICT
-
-/**
- * Compile virtual machine instruction.
- * @param[in] code operation code.
- */
-#define FVM_OP(code) FVM::OP_ ## code
-
-/**
- * Compile literal number.
- * @param[in] n number.
- */
-#define FVM_LIT(n)							\
-  FVM::OP_LITERAL,							\
-  FVM::code_t((n) >> 8),						\
-  FVM::code_t(n)
-
-/**
- * Compile literal number/character.
- * @param[in] n number.
- */
-#define FVM_CLIT(n)							\
-  FVM::OP_C_LITERAL,							\
-  FVM::code_t(n)
-
-/**
- * Compile call to given function in function table.
- * @param[in] fn function index in table.
- */
-#define FVM_CALL(fn) FVM::code_t(-fn-1)
 
 /**
  * String in program memory.
@@ -81,6 +54,7 @@ class FVM {
     OP_LITERAL,			// Inline literal constant
     OP_C_LITERAL,		// Inline literal signed character constant
     OP_S_LITERAL,	        // Push instruction pointer and branch always
+    OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
     OP_EXECUTE,			// Execute operation or function
@@ -198,6 +172,7 @@ class FVM {
      * Dictionary functions
      */
     OP_LOOKUP,			// Lookup word in dictionary
+    OP_WORDS,			// Print list of operations/functions
 
     /*
      * Basic I/O
@@ -205,7 +180,8 @@ class FVM {
     OP_BASE,			// Base for number conversion
     OP_HEX,			// Set hexa-decimal number conversion base
     OP_DECIMAL,			// Set decimal number conversion base
-    OP_KEY,			// Read character
+    OP_QKEY,			// Read character if available
+    OP_KEY,			// Wait for character and read
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
     OP_SPACE,			// Print space
@@ -214,7 +190,6 @@ class FVM {
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_DOT_NAME,		// Print operation/function name
-    OP_WORDS,			// Print list of operations/functions
 
     /*
      * Arduino extensions
@@ -304,6 +279,15 @@ class FVM {
     }
 
     /**
+     * Current trace mode.
+     * @return trace mode.
+     */
+    bool trace()
+    {
+      return (m_trace);
+    }
+
+    /**
      * Enable/disable trace mode.
      * @param[in] flag trace mode.
      */
@@ -373,5 +357,34 @@ class FVM {
   // Kernel dictionary
   static const str_P opstr[] PROGMEM;
 };
+
+/**
+ * Compile virtual machine instruction.
+ * @param[in] code operation code.
+ */
+#define FVM_OP(code) FVM::OP_ ## code
+
+/**
+ * Compile literal number.
+ * @param[in] n number.
+ */
+#define FVM_LIT(n)							\
+  FVM::OP_LITERAL,							\
+  FVM::code_t((n) >> 8),						\
+  FVM::code_t(n)
+
+/**
+ * Compile literal number/character.
+ * @param[in] n number.
+ */
+#define FVM_CLIT(n)							\
+  FVM::OP_C_LITERAL,							\
+  FVM::code_t(n)
+
+/**
+ * Compile call to given function in function table.
+ * @param[in] fn function index in table.
+ */
+#define FVM_CALL(fn) FVM::code_t(-fn-1)
 
 #endif

@@ -2,6 +2,7 @@
     OP_LITERAL,			// Inline literal constant
     OP_C_LITERAL,		// Inline literal signed character constant
     OP_S_LITERAL,	        // Push instruction pointer and branch always
+    OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
     OP_EXECUTE,			// Execute operation or function
@@ -83,10 +84,12 @@
     OP_GREATER,			// Greater than
     OP_U_LESS,			// Unsigned less than
     OP_LOOKUP,			// Lookup word in dictionary
+    OP_WORDS,			// Print list of operations/functions
     OP_BASE,			// Base for number conversion
     OP_HEX,			// Set hexa-decimal number conversion base
     OP_DECIMAL,			// Set decimal number conversion base
-    OP_KEY,			// Read character
+    OP_QKEY,			// Read character if available
+    OP_KEY,			// Wait for character and read
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
     OP_SPACE,			// Print space
@@ -95,7 +98,6 @@
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_DOT_NAME,		// Print operation/function name
-    OP_WORDS,			// Print list of operations/functions
     OP_MICROS,			// Micro-seconds
     OP_MILLIS,			// Milli-seconds
     OP_DELAY,			// Delay milli-seconds (yield)
