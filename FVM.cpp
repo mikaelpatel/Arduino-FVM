@@ -422,13 +422,23 @@ int FVM::resume(task_t& task)
   // dup ( x -- x x )
   // Duplicate top of stack
   OP(DUP)
+#if 1
     *++sp = tos;
   NEXT();
+#else
+  // : dup ( x x -- x x ) 0 pick ;
+  static const code_t DUP_CODE[] PROGMEM = {
+    FVM_OP(ZERO),
+    FVM_OP(PICK),
+    FVM_OP(EXIT)
+  };
+  CALL(DUP_CODE);
+#endif
 
   // ?dup ( x -- x x | 0 -- 0 )
   // Duplicate non zero top of stack
   OP(QDUP)
-#if 0
+#if 1
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
@@ -445,10 +455,20 @@ int FVM::resume(task_t& task)
   // over ( x y -- x y x )
   // Duplicate next top of stack
   OP(OVER)
+#if 1
     tmp = *sp;
     *++sp = tos;
     tos = tmp;
   NEXT();
+#else
+  // : over ( x y -- x y x ) 1 pick ;
+  static const code_t OVER_CODE[] PROGMEM = {
+    FVM_OP(ONE),
+    FVM_OP(PICK),
+    FVM_OP(EXIT)
+  };
+  CALL(OVER_CODE);
+#endif
 
   // tuck ( x y -- y x y )
   // Duplicate top of stack and rotate
@@ -477,19 +497,39 @@ int FVM::resume(task_t& task)
   // swap ( x y -- y x )
   // Swap top two stack elements
   OP(SWAP)
+#if 1
     tmp = tos;
     tos = *sp;
     *sp = tmp;
   NEXT();
+#else
+  // : swap ( x y -- y x ) 1 roll ;
+  static const code_t SWAP_CODE[] PROGMEM = {
+    FVM_OP(ONE),
+    FVM_OP(ROLL),
+    FVM_OP(EXIT)
+  };
+  CALL(SWAP_CODE);
+#endif
 
   // rot ( x y z -- y z x )
   // Rotate up top three stack elements
   OP(ROT)
+#if 1
     tmp = tos;
     tos = *(sp - 1);
     *(sp - 1) = *sp;
     *sp = tmp;
   NEXT();
+#else
+  // : rot ( x y z -- z y x ) 2 roll ;
+  static const code_t ROT_CODE[] PROGMEM = {
+    FVM_OP(TWO),
+    FVM_OP(ROLL),
+    FVM_OP(EXIT)
+  };
+  CALL(ROT_CODE);
+#endif
 
   // -rot ( x y z -- z x y )
   // Rotate down top three stack elements
