@@ -69,4 +69,8 @@ void loop()
   // Lookup and execute
   else
     fvm.execute(buffer, task);
+
+  // Print stack contents after each command line
+  if (c == '\n' && !task.trace())
+    fvm.execute(FVM::OP_DOT_S, task);
 }
