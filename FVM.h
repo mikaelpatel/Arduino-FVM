@@ -54,6 +54,9 @@ class FVM {
     OP_LITERAL,			// Inline literal constant
     OP_C_LITERAL,		// Inline literal signed character constant
     OP_S_LITERAL,	        // Push instruction pointer and branch always
+    OP_VAR,			// Handle variable reference
+    OP_CONST,			// Handle constant
+    OP_DOES,			// Handle object pointer
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
@@ -120,8 +123,8 @@ class FVM {
      */
     OP_BOOL,			// Convert top of stack to boolean
     OP_NOT,			// Convert top of stack to invert boolean
-    OP_TRUE,			// Push true
-    OP_FALSE,			// Push false
+    OP_TRUE,			// Push true(-1)
+    OP_FALSE,			// Push false(0)
     OP_INVERT,			// Bitwise inverse top element
     OP_AND,			// Bitwise AND top two elements
     OP_OR,			// Bitwise OR top two elements
@@ -172,6 +175,7 @@ class FVM {
      * Dictionary functions
      */
     OP_LOOKUP,			// Lookup word in dictionary
+    OP_TO_BODY,			// Access data area application variable
     OP_WORDS,			// Print list of operations/functions
 
     /*
@@ -190,6 +194,7 @@ class FVM {
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
     OP_DOT_NAME,		// Print operation/function name
+    OP_Q,			// Print value of variable
 
     /*
      * Arduino extensions
@@ -222,6 +227,16 @@ class FVM {
   typedef uint32_t udata2_t;
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
+
+  struct const_t {
+    code_t op;
+    data_t value;
+  };
+
+  struct var_t {
+    code_t op;
+    data_t* value;
+  };
 
   struct task_t {
     // Default stack sizes
@@ -389,5 +404,30 @@ class FVM {
  * @param[in] fn function index in table.
  */
 #define FVM_CALL(fn) FVM::code_t(-fn-1)
+
+/**
+ * Create a named reference to a created object.
+ * @param[in] n name of object.
+ * @param[in] fn action function (does).
+ */
+#define FVM_CREATE(n,does)						\
+  const char n ## _PSTR[] PROGMEM = #n;					\
+  const FVM::var_t n ## _VAR PROGMEM = { FVM_CALL(does), (FVM::data_t*) &n }
+
+/**
+ * Create a named reference to a variable.
+ * @param[in] n name of variable.
+ */
+#define FVM_VARIABLE(n)							\
+  const char n ## _PSTR[] PROGMEM = #n;					\
+  const FVM::var_t n ## _VAR PROGMEM = { FVM_OP(VAR), (FVM::data_t*) &n }
+
+/**
+ * Create a constant value.
+ * @param[in] n name of constant.
+ */
+#define FVM_CONSTANT(n,val)						\
+  const char n ## _PSTR[] PROGMEM = #n;					\
+  const FVM::const_t n ## _CONST PROGMEM = { FVM_OP(CONST), val }
 
 #endif

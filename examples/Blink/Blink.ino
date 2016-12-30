@@ -29,11 +29,11 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +84   1958 +Blink sketch code and task
- *  +3314 5272 +Forth Virtual Machine
- *  +780  6052 +Kernel dictionary (112 words)
- *  +978  7030 +Trace mode
+ *  +3422 5380 +Forth Virtual Machine
+ *  +818  6198 +Kernel dictionary (117 words)
+ *  +998  7196 +Trace mode
  * ------------------------------------------------
- * Arduino Uno/IDE 1.6.13
+ * Arduino Uno/IDE 1.8.0
  */
 
 #define MEASURE
@@ -58,10 +58,10 @@ const FVM::code_t BLINK_CODE[] PROGMEM = {
   FVM_OP(ONE),
   FVM_OP(OVER),
   FVM_OP(PINMODE),
-  FVM_OP(DUP),
-  FVM_OP(DIGITALTOGGLE),
-  FVM_OP(OVER),
-  FVM_OP(DELAY),
+    FVM_OP(DUP),
+    FVM_OP(DIGITALTOGGLE),
+    FVM_OP(OVER),
+    FVM_OP(DELAY),
   FVM_OP(BRANCH), -6,
   FVM_OP(EXIT)
 };

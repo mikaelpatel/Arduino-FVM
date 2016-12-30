@@ -27,7 +27,7 @@
 #define NEXT() goto INNER
 #define OP(n) case OP_ ## n:
 #define FETCH(ip) pgm_read_byte(ip)
-#define FNTAB(n) (code_P) pgm_read_word(fntab-n-1)
+#define WFETCH(ip) pgm_read_word(ip)
 #define CALL(fn) tp = fn; goto FNCALL
 #define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(&fnstr[-ir-1])
 #define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(&opstr[ir])
@@ -74,7 +74,7 @@ int FVM::resume(task_t& task)
 
   while ((ir = (int8_t) FETCH(ip++)) < 0) {
     *++rp = ip;
-    ip = FNTAB(ir);
+    ip = (code_P) pgm_read_word(fntab-ir-1);
   }
 
 #else
@@ -94,7 +94,7 @@ int FVM::resume(task_t& task)
     ir = (int8_t) FETCH(ip++);
     if (ir < 0 ) {
       *++rp = ip;
-      ip = FNTAB(ir);
+      ip = (code_P) pgm_read_word(fntab-ir-1);
       if (task.m_trace) {
 	ios.print(127-ir);
 	ios.print(':');
@@ -155,11 +155,24 @@ int FVM::resume(task_t& task)
     tos = (int8_t) FETCH(ip++);
   NEXT();
 
-  // (sliteral) ( -- addr )
-  // Push pointer to literal and branch
-  OP(S_LITERAL)
+  // (var) ( -- addr )
+  // Push address of variable
+  OP(VAR)
+
+  // (const) ( -- addr )
+  // Push value of contant
+  OP(CONST)
     *++sp = tos;
-    tos = (data_t) ip + 1;
+    tos = (data_t) WFETCH(ip);
+    ip = *rp--;
+  NEXT();
+
+  // (does) ( -- value )
+  // Push literal constant and return
+  OP(DOES)
+    *++sp = tos;
+    tp = *rp--;
+    tos = (data_t) WFETCH(tp);
   NEXT();
 
   // (param) ( x0..xn -- x0..xn x0 )
@@ -169,6 +182,12 @@ int FVM::resume(task_t& task)
     ir = (int8_t) FETCH(ip++);
     tos = *(sp - ir);
   NEXT();
+
+  // (sliteral) ( -- addr )
+  // Push pointer to literal and branch
+  OP(S_LITERAL)
+    *++sp = tos;
+    tos = (data_t) ip + 1;
 
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127)
@@ -195,7 +214,7 @@ int FVM::resume(task_t& task)
     }
     else {
       *++rp = ip;
-      ip = FNTAB(tos);
+      ip = (code_P) pgm_read_word(fntab+(tos-128));
       tos = *sp--;
     }
   NEXT();
@@ -988,10 +1007,17 @@ int FVM::resume(task_t& task)
     tos = ((udata_t) *sp-- < (udata_t) tos) ? -1 : 0;
   NEXT();
 
-  // lookup ( str -- n)
-  // Lookup string in dictionary.
+  // lookup ( str -- n )
+  // Lookup string in dictionary
   OP(LOOKUP)
     tos = lookup((const char*) tos);
+  NEXT();
+
+  // >body ( n -- addr )
+  // Access data area for given token (must be greater than 127).
+  OP(TO_BODY)
+    tp = (code_P) pgm_read_word(fntab+(tos-128));
+    tos = (data_t) WFETCH(tp+1);
   NEXT();
 
   // words ( -- )
@@ -1050,8 +1076,8 @@ int FVM::resume(task_t& task)
       FVM_CLIT(5),
       FVM_OP(MOD),
       FVM_OP(NOT),
-    FVM_OP(ZERO_BRANCH), -18,
-      FVM_OP(CR),
+      FVM_OP(ZERO_BRANCH), -18,
+        FVM_OP(CR),
     FVM_OP(BRANCH), -21,
     FVM_OP(CR),
     FVM_OP(DROP),
@@ -1118,10 +1144,10 @@ int FVM::resume(task_t& task)
   // Wait for character and read
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
-    FVM_OP(QKEY),
-    FVM_OP(NOT),
+      FVM_OP(QKEY),
+      FVM_OP(NOT),
     FVM_OP(ZERO_BRANCH), 3,
-    FVM_OP(YIELD),
+      FVM_OP(YIELD),
     FVM_OP(BRANCH), -7,
     FVM_OP(EXIT)
   };
@@ -1210,12 +1236,12 @@ int FVM::resume(task_t& task)
     FVM_CLIT(10),
     FVM_OP(EQUALS),
     FVM_OP(ZERO_BRANCH), 8,
-    FVM_OP(DUP),
-    FVM_OP(ZERO_LESS),
-    FVM_OP(ZERO_BRANCH), 4,
-      FVM_CLIT('-'),
-      FVM_OP(EMIT),
-      FVM_OP(NEGATE),
+      FVM_OP(DUP),
+      FVM_OP(ZERO_LESS),
+      FVM_OP(ZERO_BRANCH), 4,
+        FVM_CLIT('-'),
+        FVM_OP(EMIT),
+        FVM_OP(NEGATE),
     FVM_OP(U_DOT),
     FVM_OP(SPACE),
     FVM_OP(EXIT)
@@ -1282,6 +1308,16 @@ int FVM::resume(task_t& task)
     tos = (s != NULL) ? ios.print(s) : 0;
   }
   NEXT();
+
+  // ? ( addr -- ) @ . ;
+  // Print value of variable
+  OP(Q)
+  static const code_t Q_CODE[] PROGMEM = {
+    FVM_OP(FETCH),
+    FVM_OP(DOT),
+    FVM_OP(EXIT)
+  };
+  CALL(Q_CODE);
 
   // delay ( ms -- )
   // Yield while waiting given number of milli-seconds
@@ -1408,7 +1444,7 @@ int FVM::execute(code_t op, task_t& task)
     FVM_OP(EXECUTE),
     FVM_OP(HALT)
   };
-  task.push(op);
+  task.push((uint8_t) op);
   return (execute(EXECUTE_CODE, task));
 }
 
@@ -1427,6 +1463,9 @@ static const char EXIT_PSTR[] PROGMEM = "exit";
 static const char LITERAL_PSTR[] PROGMEM = "(literal)";
 static const char C_LITERAL_PSTR[] PROGMEM = "(cliteral)";
 static const char S_LITERAL_PSTR[] PROGMEM = "(sliteral)";
+static const char VAR_PSTR[] PROGMEM = "(var)";
+static const char CONST_PSTR[] PROGMEM = "(const)";
+static const char DOES_PSTR[] PROGMEM = "(does)";
 static const char PARAM_PSTR[] PROGMEM = "(param)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
 static const char ZERO_BRANCH_PSTR[] PROGMEM = "(0branch)";
@@ -1509,6 +1548,7 @@ static const char ABS_PSTR[] PROGMEM = "abs";
 static const char MIN_PSTR[] PROGMEM = "min";
 static const char MAX_PSTR[] PROGMEM = "max";
 static const char LOOKUP_PSTR[] PROGMEM = "lookup";
+static const char TO_BODY_PSTR[] PROGMEM = ">body";
 static const char WORDS_PSTR[] PROGMEM = "words";
 static const char BASE_PSTR[] PROGMEM = "base";
 static const char HEX_PSTR[] PROGMEM = "hex";
@@ -1523,6 +1563,7 @@ static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
+static const char Q_PSTR[] PROGMEM = "?";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1543,6 +1584,9 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LITERAL_PSTR,
   (str_P) C_LITERAL_PSTR,
   (str_P) S_LITERAL_PSTR,
+  (str_P) VAR_PSTR,
+  (str_P) CONST_PSTR,
+  (str_P) DOES_PSTR,
   (str_P) PARAM_PSTR,
   (str_P) BRANCH_PSTR,
   (str_P) ZERO_BRANCH_PSTR,
@@ -1625,6 +1669,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) GREATER_PSTR,
   (str_P) U_LESS_PSTR,
   (str_P) LOOKUP_PSTR,
+  (str_P) TO_BODY_PSTR,
   (str_P) WORDS_PSTR,
   (str_P) BASE_PSTR,
   (str_P) HEX_PSTR,
@@ -1639,6 +1684,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) DOT_NAME_PSTR,
+  (str_P) Q_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,
