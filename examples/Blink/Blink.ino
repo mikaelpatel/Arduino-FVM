@@ -122,6 +122,6 @@ void loop()
   Serial.print(':');
   Serial.println(us);
   Serial.flush();
-  delay(100);
+  delay(10);
 #endif
 }

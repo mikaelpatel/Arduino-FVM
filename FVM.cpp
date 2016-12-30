@@ -124,10 +124,10 @@ int FVM::resume(task_t& task)
       }
       ios.println();
     }
+    // Flush output and start measurement
+    ios.flush();
+    start = micros();
   } while (ir < 0);
-  // Flush output and start measurement
-  ios.flush();
-  start = micros();
 #endif
 
   // Dispatch instruction; primitive or internal function call
