@@ -53,11 +53,12 @@ int FVM::resume(task_t& task)
   // Restore virtual machine state
   Stream& ios = task.m_ios;
   data_t* sp = task.m_sp;
-  data_t tos = ((sp != task.m_sp0) ? *sp-- : 0);
+  data_t tos = *sp--;
   const code_t* ip = task.m_ip;
   const code_t** rp = task.m_rp;
   const code_t* tp;
-  data_t tmp, ir;
+  data_t tmp;
+  int8_t ir;
 
   // Benchmark support in trace mode; measure micro-seconds per operation
 #if defined(FVM_TRACE)
@@ -159,6 +160,7 @@ int FVM::resume(task_t& task)
   OP(S_LITERAL)
     *++sp = tos;
     tos = (data_t) ip + 1;
+  NEXT();
 
   // (param) ( x0..xn -- x0..xn x0 )
   // Duplicate inline index stack element to top of stack
@@ -256,7 +258,7 @@ int FVM::resume(task_t& task)
   // Push address to data pointer
   OP(DP)
     *++sp = tos;
-    tos = (data_t) &task.m_dp;
+    tos = (data_t) &m_dp;
   NEXT();
 
   // here ( -- addr )
@@ -264,7 +266,7 @@ int FVM::resume(task_t& task)
   OP(HERE)
 #if 0
     *++sp = tos;
-    tos = (data_t) task.m_dp;
+    tos = (data_t) m_dp;
   NEXT();
 #else
   // : here ( -- addr ) dp @ ;
@@ -280,7 +282,7 @@ int FVM::resume(task_t& task)
   // Allocate number of bytes from data area
   OP(ALLOT)
 #if 0
-    task.m_dp += tos;
+    m_dp += tos;
     tos = *sp--;
   NEXT();
 #else
@@ -445,7 +447,7 @@ int FVM::resume(task_t& task)
   // ?dup ( x -- x x | 0 -- 0 )
   // Duplicate non zero top of stack
   OP(QDUP)
-#if 1
+#if 0
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
@@ -1099,16 +1101,17 @@ int FVM::resume(task_t& task)
   CALL(DECIMAL_CODE);
 #endif
 
-  // ?key ( -- c/0, -1 )
+  // ?key ( -- c -1/0 )
   // Read character if available
   OP(QKEY)
     *++sp = tos;
     if (ios.available()) {
       *++sp = ios.read();
+      tos = -1;
+    }
+    else {
       tos = 0;
     }
-    else
-      tos = -1;
   NEXT();
 
   // key ( -- c ) begin ?key while yield repeat ;
@@ -1116,9 +1119,10 @@ int FVM::resume(task_t& task)
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
     FVM_OP(QKEY),
+    FVM_OP(NOT),
     FVM_OP(ZERO_BRANCH), 3,
     FVM_OP(YIELD),
-    FVM_OP(BRANCH), -6,
+    FVM_OP(BRANCH), -7,
     FVM_OP(EXIT)
   };
   CALL(KEY_CODE);
@@ -1369,7 +1373,7 @@ int FVM::resume(task_t& task)
   // yield ( -- )
   // Yield virtual machine and save context
   OP(YIELD)
-    if (sp != task.m_sp0) *++sp = tos;
+    *++sp = tos;
     task.m_sp = sp;
     task.m_ip = ip;
     task.m_rp = rp;

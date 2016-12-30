@@ -224,20 +224,17 @@ class FVM {
   typedef const PROGMEM code_t* code_P;
 
   struct task_t {
-    // Default data area and stack sizes
+    // Default stack sizes
     static const int SP0_MAX = 32;
     static const int RP0_MAX = 16;
-    static const int DP0_MAX = 64;
 
     code_P m_ip;		// Instruction pointer
     code_P* m_rp;		// Return stack pointer
     data_t* m_sp;		// Parameter stack pointer
-    uint8_t* m_dp;		// Data allocation pointer
     Stream& m_ios;		// Input/Output stream
     data_t m_base;		// Number conversion base
     bool m_trace;		// Trace mode
 
-    uint8_t m_dp0[DP0_MAX];	// Data area
     data_t m_sp0[SP0_MAX];	// Parameter stack
     code_P m_rp0[RP0_MAX];	// Return stack
 
@@ -250,8 +247,7 @@ class FVM {
     task_t(Stream& ios, code_P fn = 0) :
       m_ip(fn),
       m_rp(m_rp0),
-      m_sp(m_sp0),
-      m_dp(m_dp0),
+      m_sp(m_sp0 + 1),
       m_ios(ios),
       m_base(10),
       m_trace(false)
@@ -263,9 +259,7 @@ class FVM {
      */
     void push(data_t value)
     {
-      data_t* sp = m_sp + (m_sp == m_sp0);
-      *++sp = value;
-      m_sp = sp;
+      *++m_sp = value;
     }
 
     /**
@@ -274,7 +268,6 @@ class FVM {
      */
     data_t pop()
     {
-      if (m_sp == m_sp0) return (0);
       return (*m_sp--);
     }
 
@@ -307,6 +300,12 @@ class FVM {
       return (*this);
     }
   };
+
+  /**
+   * Construct forth virtual machine with given data area.
+   * @param[in] dp0 initial data pointer.
+   */
+  FVM(void* dp0 = 0) : m_dp((uint8_t*) dp0) {}
 
   /**
    * Lookup given string in dictionary. Return operation code (0..127)
@@ -354,8 +353,12 @@ class FVM {
   static const code_P fntab[] PROGMEM;
   static const str_P fnstr[] PROGMEM;
 
+ protected:
   // Kernel dictionary
   static const str_P opstr[] PROGMEM;
+
+  // Data allocation pointer
+  uint8_t* m_dp;
 };
 
 /**

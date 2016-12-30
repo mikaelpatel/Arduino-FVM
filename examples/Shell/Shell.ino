@@ -29,7 +29,8 @@
 const FVM::code_P FVM::fntab[] PROGMEM = {};
 const str_P FVM::fnstr[] PROGMEM = { 0 };
 
-FVM fvm;
+uint8_t data[128];
+FVM fvm(data);
 FVM::task_t task(Serial);
 
 void setup()
