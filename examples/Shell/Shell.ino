@@ -27,7 +27,7 @@
 
 #include "FVM.h"
 
-// Forward declare array handler function
+// Forward declare object handler function (doers)
 const int ARRAY_FN = 4;
 const int TWO_CONST_FN = 5;
 
@@ -46,26 +46,26 @@ const int Z_ID = 2;
 FVM_CREATE(Z, ARRAY_FN);
 
 // Declare double constant with handler function
-int X2[] = { 1, 2 };
-const int X2_ID = 3;
-FVM_CREATE(X2, TWO_CONST_FN);
+int C2[] = { 1, 2 };
+const int C2_ID = 3;
+FVM_CREATE(C2, TWO_CONST_FN);
 
 // Array handler function (does code)
-const char ARRAY_PSTR[] PROGMEM = "array";
+const char ARRAY_PSTR[] PROGMEM = "(array)";
 
-// does: array ( index array-addr -- element-addr ) swap cells + ;
+// does> ( index array-addr -- element-addr ) swap cells + ;
 const FVM::code_t ARRAY_CODE[] PROGMEM = {
   FVM_OP(DOES),
   FVM_OP(SWAP),
   FVM_OP(CELLS),
   FVM_OP(PLUS),
-  FVM_OP(HALT)
+  FVM_OP(EXIT)
 };
 
 // Double constant handler function (does code)
-const char TWO_CONST_PSTR[] PROGMEM = "2const";
+const char TWO_CONST_PSTR[] PROGMEM = "(2const)";
 
-// does: 2const ( addr -- x y ) dup @ swap cell + @ ;
+// does> ( addr -- x y ) dup @ swap cell + @ ;
 const FVM::code_t TWO_CONST_CODE[] PROGMEM = {
   FVM_OP(DOES),
   FVM_OP(DUP),
@@ -74,32 +74,42 @@ const FVM::code_t TWO_CONST_CODE[] PROGMEM = {
   FVM_OP(CELL),
   FVM_OP(PLUS),
   FVM_OP(FETCH),
-  FVM_OP(HALT)
+  FVM_OP(EXIT)
 };
 
+// Pad area for scanned word
+const int PAD_MAX = 32;
+char PAD[PAD_MAX];
+const int PAD_ID = 6;
+FVM_VARIABLE(PAD);
+
+// Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &X_VAR,
   (code_P) &Y_CONST,
   (code_P) &Z_VAR,
-  (code_P) &X2_VAR,
+  (code_P) &C2_VAR,
   (code_P) ARRAY_CODE,
-  (code_P) TWO_CONST_CODE
+  (code_P) TWO_CONST_CODE,
+  (code_P) &PAD_VAR
 };
 
+// Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) X_PSTR,
   (str_P) Y_PSTR,
   (str_P) Z_PSTR,
-  (str_P) X2_PSTR,
+  (str_P) C2_PSTR,
   (str_P) ARRAY_PSTR,
   (str_P) TWO_CONST_PSTR,
+  (str_P) PAD_PSTR,
   0
 };
 
 // Data area for the shell (if needed)
 uint8_t data[128];
 
-// Forth Virtual Machine and Task
+// Forth virtual machine and task
 FVM fvm(data);
 FVM::task_t task(Serial);
 
@@ -114,7 +124,6 @@ void loop()
 {
   // Scan buffer for a single word or number
   char buffer[32];
-  char pad[32];
   char* bp = buffer;
   char c;
 
@@ -132,10 +141,10 @@ void loop()
    } while (c > ' ');
   *bp = 0;
 
-  // Check for operation/function name
+  // Check for quote of operation/function name
   if (buffer[0] == '\\') {
-    strcpy(pad, buffer+1);
-    task.push((int) pad);
+    strcpy(PAD, buffer+1);
+    task.push((int) PAD);
   }
   // Lookup and execute
   else
