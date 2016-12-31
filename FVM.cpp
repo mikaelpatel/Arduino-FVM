@@ -840,16 +840,28 @@ int FVM::resume(task_t& task)
   // abs ( x -- |x| )
   // Absolute value of top of stack
   OP(ABS)
-#if 1
+#if 0
     if (tos < 0) tos = -tos;
   NEXT();
-#else
+#elif 0
   // : abs ( x -- |x| ) dup 0< if negate then ;
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
     FVM_OP(ZERO_BRANCH), 1,
       FVM_OP(NEGATE),
+    FVM_OP(EXIT)
+  };
+  CALL(ABS_CODE);
+#else
+  // : abs ( x -- |x| ) dup 0< swap over + xor ;
+  static const code_t ABS_CODE[] PROGMEM = {
+    FVM_OP(DUP),
+    FVM_OP(ZERO_LESS),
+    FVM_OP(SWAP),
+    FVM_OP(OVER),
+    FVM_OP(PLUS),
+    FVM_OP(XOR),
     FVM_OP(EXIT)
   };
   CALL(ABS_CODE);
@@ -862,7 +874,7 @@ int FVM::resume(task_t& task)
     tmp = *sp--;
     if (tmp < tos) tos = tmp;
   NEXT();
-#else
+#elif 0
   // : min ( x y -- min(x,y)) 2dup > if swap then drop ;
   static const code_t MIN_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
@@ -870,6 +882,18 @@ int FVM::resume(task_t& task)
     FVM_OP(ZERO_BRANCH), 1,
       FVM_OP(SWAP),
     FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(MIN_CODE);
+#else
+  // : min ( x y -- min(x,y)) over - dup 0< and + ;
+  static const code_t MIN_CODE[] PROGMEM = {
+    FVM_OP(OVER),
+    FVM_OP(MINUS),
+    FVM_OP(DUP),
+    FVM_OP(ZERO_LESS),
+    FVM_OP(AND),
+    FVM_OP(PLUS),
     FVM_OP(EXIT)
   };
   CALL(MIN_CODE);
@@ -882,7 +906,7 @@ int FVM::resume(task_t& task)
     tmp = *sp--;
     if (tmp > tos) tos = tmp;
   NEXT();
-#else
+#elif 0
   // : max ( x y -- max(x,y)) 2dup < if swap then drop ;
   static const code_t MAX_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
@@ -890,6 +914,19 @@ int FVM::resume(task_t& task)
     FVM_OP(ZERO_BRANCH), 1,
       FVM_OP(SWAP),
     FVM_OP(DROP),
+    FVM_OP(EXIT)
+  };
+  CALL(MAX_CODE);
+#else
+  // : max ( x y -- max(x,y)) over swap - dup 0< and - ;
+  static const code_t MAX_CODE[] PROGMEM = {
+    FVM_OP(OVER),
+    FVM_OP(SWAP),
+    FVM_OP(MINUS),
+    FVM_OP(DUP),
+    FVM_OP(ZERO_LESS),
+    FVM_OP(AND),
+    FVM_OP(MINUS),
     FVM_OP(EXIT)
   };
   CALL(MAX_CODE);
