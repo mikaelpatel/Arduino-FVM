@@ -51,15 +51,16 @@ class FVM {
      * Control structure and literals
      */
     OP_EXIT,			// Function return
-    OP_LITERAL,			// Inline literal constant
-    OP_C_LITERAL,		// Inline literal signed character constant
-    OP_S_LITERAL,	        // Push instruction pointer and branch always
+    OP_LIT,			// Inline literal constant
+    OP_CLIT,		 	// Inline literal signed character constant
+    OP_SLIT,		 	// Push instruction pointer and branch always
     OP_VAR,			// Handle variable reference
     OP_CONST,			// Handle constant
     OP_DOES,			// Handle object pointer
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
+    OP_COMPILE,			// Add inline operation/function code
     OP_EXECUTE,			// Execute operation or function
     OP_TRACE,			// Set trace mode
 
@@ -364,6 +365,27 @@ class FVM {
    */
   int execute(const char* name, task_t& task);
 
+  /**
+   * Current data pointer.
+   */
+  uint8_t* dp()
+  {
+    return (m_dp);
+  }
+
+  /**
+   * Set data pointer.
+   */
+  void dp(void* dp)
+  {
+    m_dp = (uint8_t*) dp;
+  }
+
+  void compile(code_t op)
+  {
+    *m_dp++ = op;
+  }
+
   // Function code and dictionary provided by sketch
   static const code_P fntab[] PROGMEM;
   static const str_P fnstr[] PROGMEM;
@@ -387,7 +409,7 @@ class FVM {
  * @param[in] n number.
  */
 #define FVM_LIT(n)							\
-  FVM::OP_LITERAL,							\
+  FVM::OP_LIT,								\
   FVM::code_t((n) >> 8),						\
   FVM::code_t(n)
 
@@ -396,7 +418,7 @@ class FVM {
  * @param[in] n number.
  */
 #define FVM_CLIT(n)							\
-  FVM::OP_C_LITERAL,							\
+  FVM::OP_CLIT,								\
   FVM::code_t(n)
 
 /**

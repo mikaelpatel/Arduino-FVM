@@ -79,7 +79,7 @@ int FVM::resume(task_t& task)
 
 #else
   // Trace execution; micro-seconds, instruction pointer,
-  // instruction/function, and stack contents
+  // return stack, instruction/function, and stack contents
   do {
     if (task.m_trace) {
       // Print measurement of latest operation; micro-seconds
@@ -87,6 +87,9 @@ int FVM::resume(task_t& task)
       ios.print(':');
       // Print current instruction pointer
       ios.print((uint16_t) ip);
+      ios.print(':');
+      // Print current return stack pointer
+      ios.print((uint16_t) rp);
       ios.print(':');
     }
     // Fetch next instruction and check for function call or primitive
@@ -140,17 +143,17 @@ int FVM::resume(task_t& task)
     ip = *rp--;
   NEXT();
 
-  // (literal) ( -- x )
+  // (lit) ( -- x )
   // Push literal data (big-endian)
-  OP(LITERAL)
+  OP(LIT)
     *++sp = tos;
     tos = (int8_t) FETCH(ip++);
     tos = ((tos << 8) | FETCH(ip++));
   NEXT();
 
-  // (cliteral) ( -- x )
+  // (clit) ( -- x )
   // Push literal data
-  OP(C_LITERAL)
+  OP(CLIT)
     *++sp = tos;
     tos = (int8_t) FETCH(ip++);
   NEXT();
@@ -183,25 +186,31 @@ int FVM::resume(task_t& task)
     tos = *(sp - ir);
   NEXT();
 
-  // (sliteral) ( -- addr )
+  // (slit) ( -- addr )
   // Push pointer to literal and branch
-  OP(S_LITERAL)
+  OP(SLIT)
     *++sp = tos;
     tos = (data_t) ip + 1;
 
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127)
   OP(BRANCH)
-    ir = (int8_t) FETCH(ip++);
+    ir = (int8_t) FETCH(ip);
     ip += ir;
   NEXT();
 
   // (0branch) ( flag -- )
   // Branch zero equal/false (8-bit offset, -128..127)
   OP(ZERO_BRANCH)
-    ir = (int8_t) FETCH(ip++);
-    if (tos == 0) ip += ir;
+    ir = (int8_t) FETCH(ip);
+    ip += (tos == 0) ? ir : 1;
     tos = *sp--;
+  NEXT();
+
+  // (compile) ( -- )
+  // Add inline operation/function
+  OP(COMPILE)
+    *m_dp++ = (int8_t) FETCH(ip++);
   NEXT();
 
   // execute ( n -- )
@@ -318,8 +327,8 @@ int FVM::resume(task_t& task)
   // Allocate and assign from top of stack
   OP(COMMA)
 #if 0
-    *((data_t*) task.m_dp) = tos;
-    task.m_dp += sizeof(data_t);
+    *((data_t*) m_dp) = tos;
+    m_dp += sizeof(data_t);
     tos = *sp--;
   NEXT();
 #else
@@ -338,7 +347,7 @@ int FVM::resume(task_t& task)
   // Allocate and assign character from top of stack
   OP(C_COMMA)
 #if 0
-    *task.m_dp++ = tos;
+    *m_dp++ = tos;
     tos = *sp--;
   NEXT();
 #else
@@ -473,7 +482,7 @@ int FVM::resume(task_t& task)
   // : ?dup ( x -- x x | 0 -- 0 ) dup if dup then ;
   static const code_t QDUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
-    FVM_OP(ZERO_BRANCH), 1,
+    FVM_OP(ZERO_BRANCH), 2,
       FVM_OP(DUP),
     FVM_OP(EXIT)
   };
@@ -848,7 +857,7 @@ int FVM::resume(task_t& task)
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
-    FVM_OP(ZERO_BRANCH), 1,
+    FVM_OP(ZERO_BRANCH), 2,
       FVM_OP(NEGATE),
     FVM_OP(EXIT)
   };
@@ -879,7 +888,7 @@ int FVM::resume(task_t& task)
   static const code_t MIN_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
     FVM_OP(GREATER),
-    FVM_OP(ZERO_BRANCH), 1,
+    FVM_OP(ZERO_BRANCH), 2,
       FVM_OP(SWAP),
     FVM_OP(DROP),
     FVM_OP(EXIT)
@@ -911,7 +920,7 @@ int FVM::resume(task_t& task)
   static const code_t MAX_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
     FVM_OP(LESS),
-    FVM_OP(ZERO_BRANCH), 1,
+    FVM_OP(ZERO_BRANCH), 2,
       FVM_OP(SWAP),
     FVM_OP(DROP),
     FVM_OP(EXIT)
@@ -955,8 +964,18 @@ int FVM::resume(task_t& task)
   // 0< ( x<0: x -- -1, else 0 )
   // Top of stack less than zero
   OP(ZERO_LESS)
+#if 1
     tos = (tos < 0) ? -1 : 0;
   NEXT();
+#else
+  // : 0< ( x<0: x -- -1, else 0 ) 15 rshift ;
+  static const code_t ZERO_LESS_CODE[] PROGMEM = {
+    FVM_CLIT(15),
+    FVM_OP(RSHIFT),
+    FVM_OP(EXIT)
+  };
+  CALL(ZERO_LESS_CODE);
+#endif
 
   // not ( x==0: x -- -1, else 0 )
   // Convert top of stack to invert boolean (alias 0=)
@@ -1103,7 +1122,7 @@ int FVM::resume(task_t& task)
       FVM_OP(DUP),
       FVM_OP(DOT_NAME),
       FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 16,
+    FVM_OP(ZERO_BRANCH), 17,
       FVM_CLIT(16),
       FVM_OP(SWAP),
       FVM_OP(MINUS),
@@ -1113,9 +1132,9 @@ int FVM::resume(task_t& task)
       FVM_CLIT(5),
       FVM_OP(MOD),
       FVM_OP(NOT),
-      FVM_OP(ZERO_BRANCH), -18,
+      FVM_OP(ZERO_BRANCH), -17,
         FVM_OP(CR),
-    FVM_OP(BRANCH), -21,
+    FVM_OP(BRANCH), -20,
     FVM_OP(CR),
     FVM_OP(DROP),
     FVM_OP(EXIT)
@@ -1183,9 +1202,9 @@ int FVM::resume(task_t& task)
   static const code_t KEY_CODE[] PROGMEM = {
       FVM_OP(QKEY),
       FVM_OP(NOT),
-    FVM_OP(ZERO_BRANCH), 3,
+    FVM_OP(ZERO_BRANCH), 4,
       FVM_OP(YIELD),
-    FVM_OP(BRANCH), -7,
+    FVM_OP(BRANCH), -6,
     FVM_OP(EXIT)
   };
   CALL(KEY_CODE);
@@ -1240,10 +1259,10 @@ int FVM::resume(task_t& task)
   // : spaces ( n -- ) begin ?dup while space 1- repeat ;
   static const code_t SPACES_CODE[] PROGMEM = {
       FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 4,
+    FVM_OP(ZERO_BRANCH), 5,
       FVM_OP(SPACE),
       FVM_OP(ONE_MINUS),
-    FVM_OP(BRANCH), -7,
+    FVM_OP(BRANCH), -6,
     FVM_OP(EXIT)
   };
   CALL(SPACES_CODE);
@@ -1272,10 +1291,10 @@ int FVM::resume(task_t& task)
     FVM_OP(FETCH),
     FVM_CLIT(10),
     FVM_OP(EQUALS),
-    FVM_OP(ZERO_BRANCH), 8,
+    FVM_OP(ZERO_BRANCH), 9,
       FVM_OP(DUP),
       FVM_OP(ZERO_LESS),
-      FVM_OP(ZERO_BRANCH), 4,
+      FVM_OP(ZERO_BRANCH), 5,
         FVM_CLIT('-'),
         FVM_OP(EMIT),
         FVM_OP(NEGATE),
@@ -1321,12 +1340,12 @@ int FVM::resume(task_t& task)
     FVM_OP(EMIT),
     FVM_OP(SPACE),
       FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 6,
+    FVM_OP(ZERO_BRANCH), 7,
       FVM_OP(DUP),
       FVM_OP(PICK),
       FVM_OP(DOT),
       FVM_OP(ONE_MINUS),
-    FVM_OP(BRANCH), -9,
+    FVM_OP(BRANCH), -8,
     FVM_OP(CR),
     FVM_OP(EXIT)
   };
@@ -1375,9 +1394,9 @@ int FVM::resume(task_t& task)
       FVM_OP(MINUS),
       FVM_OP(OVER),
       FVM_OP(U_LESS),
-    FVM_OP(ZERO_BRANCH), 3,
+    FVM_OP(ZERO_BRANCH), 4,
       FVM_OP(YIELD),
-    FVM_OP(BRANCH), -10,
+    FVM_OP(BRANCH), -9,
     FVM_OP(R_FROM),
     FVM_OP(TWO_DROP),
     FVM_OP(EXIT)
@@ -1497,15 +1516,16 @@ int FVM::execute(const char* name, task_t& task)
 
 #if defined(FVM_DICT)
 static const char EXIT_PSTR[] PROGMEM = "exit";
-static const char LITERAL_PSTR[] PROGMEM = "(literal)";
-static const char C_LITERAL_PSTR[] PROGMEM = "(cliteral)";
-static const char S_LITERAL_PSTR[] PROGMEM = "(sliteral)";
+static const char LIT_PSTR[] PROGMEM = "(lit)";
+static const char CLIT_PSTR[] PROGMEM = "(clit)";
+static const char SLIT_PSTR[] PROGMEM = "(slit)";
 static const char VAR_PSTR[] PROGMEM = "(var)";
 static const char CONST_PSTR[] PROGMEM = "(const)";
 static const char DOES_PSTR[] PROGMEM = "(does)";
 static const char PARAM_PSTR[] PROGMEM = "(param)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
 static const char ZERO_BRANCH_PSTR[] PROGMEM = "(0branch)";
+static const char COMPILE_PSTR[] PROGMEM = "(compile)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
 static const char TRACE_PSTR[] PROGMEM = "trace";
 static const char C_FETCH_PSTR[] PROGMEM = "c@";
@@ -1618,15 +1638,16 @@ static const char NOP_PSTR[] PROGMEM = "nop";
 const str_P FVM::opstr[] PROGMEM = {
 #if defined(FVM_DICT)
   (str_P) EXIT_PSTR,
-  (str_P) LITERAL_PSTR,
-  (str_P) C_LITERAL_PSTR,
-  (str_P) S_LITERAL_PSTR,
+  (str_P) LIT_PSTR,
+  (str_P) CLIT_PSTR,
+  (str_P) SLIT_PSTR,
   (str_P) VAR_PSTR,
   (str_P) CONST_PSTR,
   (str_P) DOES_PSTR,
   (str_P) PARAM_PSTR,
   (str_P) BRANCH_PSTR,
   (str_P) ZERO_BRANCH_PSTR,
+  (str_P) COMPILE_PSTR,
   (str_P) EXECUTE_PSTR,
   (str_P) TRACE_PSTR,
   (str_P) C_FETCH_PSTR,

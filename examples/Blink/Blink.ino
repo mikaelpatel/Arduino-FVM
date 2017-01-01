@@ -48,28 +48,30 @@
 const int BLINK_FN = 0;
 const char BLINK_PSTR[] PROGMEM = "blink";
 // : blink ( ms pin -- )
-//   1 over pinmode
 //   begin
 //     dup digitaltoggle
 //     over delay
 //   repeat
 // ;
 const FVM::code_t BLINK_CODE[] PROGMEM = {
-  FVM_OP(ONE),
-  FVM_OP(OVER),
-  FVM_OP(PINMODE),
     FVM_OP(DUP),
     FVM_OP(DIGITALTOGGLE),
     FVM_OP(OVER),
     FVM_OP(DELAY),
-  FVM_OP(BRANCH), -6,
+  FVM_OP(BRANCH), -5,
   FVM_OP(EXIT)
 };
 
 const int SKETCH_FN = 1;
 const char SKETCH_PSTR[] PROGMEM = "sketch";
-// : sketch ( -- ) 500 13 blink ;
+// : sketch ( -- )
+//   1 13 pinmode
+//   500 13 blink
+// ;
 const FVM::code_t SKETCH_CODE[] PROGMEM = {
+  FVM_OP(ONE),
+  FVM_CLIT(13),
+  FVM_OP(PINMODE),
   FVM_LIT(500),
   FVM_CLIT(13),
   FVM_CALL(BLINK_FN),

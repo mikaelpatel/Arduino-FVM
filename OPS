@@ -1,13 +1,14 @@
     OP_EXIT,			// Function return
-    OP_LITERAL,			// Inline literal constant
-    OP_C_LITERAL,		// Inline literal signed character constant
-    OP_S_LITERAL,	        // Push instruction pointer and branch always
+    OP_LIT,			// Inline literal constant
+    OP_CLIT,		 	// Inline literal signed character constant
+    OP_SLIT,		 	// Push instruction pointer and branch always
     OP_VAR,			// Handle variable reference
     OP_CONST,			// Handle constant
     OP_DOES,			// Handle object pointer
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
+    OP_COMPILE,			// Add inline operation/function code
     OP_EXECUTE,			// Execute operation or function
     OP_TRACE,			// Set trace mode
     OP_C_FETCH,			// Load character (signed byte)
