@@ -29,9 +29,9 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +88   1962 +Blink sketch code and task
- *  +3464 5426 +Forth Virtual Machine
- *  +826  6252 +Kernel dictionary (119 words)
- *  +1012 7264 +Trace mode
+ *  +3510 5472 +Forth Virtual Machine
+ *  +834  6306 +Kernel dictionary (120 words)
+ *  +1015 7318 +Trace mode
  * ------------------------------------------------
  * Arduino Uno/IDE 1.8.0
  */

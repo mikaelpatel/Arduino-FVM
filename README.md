@@ -15,9 +15,9 @@ A code generator sketch is available. Forth declarations are
 translated to the Forth Virtual Machine instruction set and dictionary
 format.
 
-The Virtual Machine with 119 instructions is approx. 3.4 Kbyte without
-symbol table. This adds approx. 1 Kbyte. The instruction level trace
-adds an additional 1 Kbyte. Many of the kernel instructions are
+The Virtual Machine with 120 instructions is approx. 3.5 Kbyte without
+kernel dictionary words. This adds approx. 1 Kbyte. The instruction level
+trace adds an additional 1 Kbyte. Many of the kernel instructions are
 defined in both C++ and FVM instructions. This allows tailoring for
 speed and/or size.
 
