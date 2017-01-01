@@ -7,7 +7,7 @@ shell or even full scale Forth applications.
 ![shell-screenshot](https://dl.dropboxusercontent.com/u/993383/Cosa/screenshots/Screenshot%20from%202016-12-30%2020-40-06.png)
 
 The virtual machine allows multi-tasking. This allows easy
-integratation with the Arduino core library functions.
+integration with the Arduino core library functions.
 
 ![compiler-screenshot](https://dl.dropboxusercontent.com/u/993383/Cosa/screenshots/Screenshot%20from%202017-01-01%2016-54-07.png)
 
