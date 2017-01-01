@@ -184,6 +184,8 @@ const str_P FVM::fnstr[] PROGMEM = {
 // Data area for the shell
 uint8_t data[128];
 char pad[32];
+char id[32];
+int nr = 0;
 bool compiling = false;
 
 // Forth virtual machine and task
@@ -210,16 +212,22 @@ void loop()
   if (op < 0) {
 
     // Check for start of definition
-    if (!strcmp_P(buffer, PSTR(":")) && !compiling) {
+    if (buffer[0] == ':' && !compiling) {
+      strcpy(id, buffer + 1);
       scan(buffer);
       strcpy(pad, buffer);
       compiling = true;
     }
 
+    // Check for comment
+    else if (!strcmp_P(buffer, PSTR("("))) {
+      while (Serial.read() != ')') yield();
+    }
+
     // Check for end of definition
     else if (!strcmp_P(buffer, PSTR(";")) && compiling) {
       fvm.compile(FVM::OP_EXIT);
-      codegen();
+      codegen(Serial);
       fvm.dp(data);
       compiling = false;
     }
@@ -268,17 +276,27 @@ void scan(char* bp)
   *bp = 0;
 }
 
-void codegen()
+void codegen(Stream& ios)
 {
-  Serial.println(F("const int XXX = N;"));
-  Serial.print(F("const char XXX_PSTR[] PROGMEM = \""));
-  Serial.print(pad);
-  Serial.println(F("\";"));
-  Serial.print(F("const FVM::code_t XXX_CODE[] PROGMEM = {\n  "));
+  ios.print(F("const int "));
+  ios.print(id);
+  ios.print(F(" = "));
+  ios.print(nr++);
+  ios.println(F(";"));
+
+  ios.print(F("const char "));
+  ios.print(id);
+  ios.print(F("_PSTR[] PROGMEM = \""));
+  ios.print(pad);
+  ios.println(F("\";"));
+
+  ios.print(F("const FVM::code_t "));
+  ios.print(id);
+  ios.print(F("_CODE[] PROGMEM = {\n  "));
   for (uint8_t* dp = data; dp < fvm.dp(); dp++) {
-    Serial.print((int8_t) *dp);
-    if ((dp + 1) < fvm.dp()) Serial.print(F(", "));
+    ios.print((int8_t) *dp);
+    if ((dp + 1) < fvm.dp()) ios.print(F(", "));
   }
-  Serial.println();
-  Serial.println(F("};"));
+  ios.println();
+  ios.println(F("};"));
 }
