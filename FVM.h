@@ -57,6 +57,7 @@ class FVM {
     OP_SLIT,		 	// Push instruction pointer and branch always
     OP_VAR,			// Handle variable reference
     OP_CONST,			// Handle constant
+    OP_FUNC,			// Handle function call
     OP_DOES,			// Handle object pointer
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
@@ -230,14 +231,20 @@ class FVM {
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
 
+  struct var_t {
+    code_t op;
+    data_t* value;
+  };
+
   struct const_t {
     code_t op;
     data_t value;
   };
 
-  struct var_t {
+  typedef data_t* (*fn_t)(data_t* sp);
+  struct func_t {
     code_t op;
-    data_t* value;
+    fn_t fn;
   };
 
   struct task_t {
@@ -406,13 +413,13 @@ class FVM {
 #define FVM_OP(code) FVM::OP_ ## code
 
 /**
- * Compile literal number.
+ * Compile literal number (little endian).
  * @param[in] n number.
  */
 #define FVM_LIT(n)							\
   FVM::OP_LIT,								\
-  FVM::code_t((n) >> 8),						\
-  FVM::code_t(n)
+  FVM::code_t(n),							\
+  FVM::code_t((n) >> 8)
 
 /**
  * Compile literal number/character.
@@ -430,27 +437,60 @@ class FVM {
 
 /**
  * Create a named reference to a created object.
- * @param[in] n name of object.
- * @param[in] fn action function (does).
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] does object handler.
+ * @param[in] data storage.
  */
-#define FVM_CREATE(n,does)						\
-  const char n ## _PSTR[] PROGMEM = #n;					\
-  const FVM::var_t n ## _VAR PROGMEM = { FVM_CALL(does), (FVM::data_t*) &n }
+#define FVM_CREATE(id,var,does,data)					\
+  const int var = id;							\
+  const char var ## _PSTR[] PROGMEM = #data;				\
+  const FVM::var_t var ## _VAR PROGMEM = {				\
+    FVM_CALL(does),							\
+    (FVM::data_t*) &data						\
+  }
 
 /**
  * Create a named reference to a variable.
- * @param[in] n name of variable.
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] data storage.
  */
-#define FVM_VARIABLE(n)							\
-  const char n ## _PSTR[] PROGMEM = #n;					\
-  const FVM::var_t n ## _VAR PROGMEM = { FVM_OP(VAR), (FVM::data_t*) &n }
+#define FVM_VARIABLE(id,var,data)					\
+  const int var = id;							\
+  const char var ## _PSTR[] PROGMEM = #data;				\
+  const FVM::var_t var ## _VAR PROGMEM = {				\
+    FVM_OP(VAR),							\
+    (FVM::data_t*) &data						\
+  }
 
 /**
  * Create a constant value.
- * @param[in] n name of constant.
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] name dictionary string.
+ * @param[in] val value of constant.
  */
-#define FVM_CONSTANT(n,val)						\
-  const char n ## _PSTR[] PROGMEM = #n;					\
-  const FVM::const_t n ## _CONST PROGMEM = { FVM_OP(CONST), val }
+#define FVM_CONSTANT(id,var,name,val)					\
+  const int var = id;							\
+  const char var ## _PSTR[] PROGMEM = name;				\
+  const FVM::const_t var ## _CONST PROGMEM = {				\
+    FVM_OP(CONST),							\
+    val									\
+  }
+
+/**
+ * Create an extension function handler.
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] fn name of function.
+ */
+#define FVM_FUNCTION(id,var,fn)						\
+  const int var = id;							\
+  const char var ## _PSTR[] PROGMEM = #fn;				\
+  const FVM::func_t var ## _FUNC PROGMEM = {				\
+    FVM_OP(FUNC),							\
+    fn									\
+  }
 
 #endif

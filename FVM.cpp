@@ -151,11 +151,11 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // (lit) ( -- x )
-  // Push literal data (big-endian)
+  // Push literal data (little-endian)
   OP(LIT)
     *++sp = tos;
-    tos = (int8_t) FETCH(ip++);
-    tos = ((tos << 8) | FETCH(ip++));
+    tos = FETCH(ip++);
+    tos |= (FETCH(ip++) << 8);
   NEXT();
 
   // (clit) ( -- x )
@@ -175,6 +175,18 @@ int FVM::resume(task_t& task)
     *++sp = tos;
     tos = (data_t) WFETCH(ip);
     ip = *rp--;
+  NEXT();
+
+  // (func) ( -- )
+  // Call extension function.
+  OP(FUNC)
+  {
+    fn_t fn = (fn_t) WFETCH(ip);
+    *++sp = tos;
+    sp = fn(sp);
+    tos = *sp--;
+    ip = *rp--;
+  }
   NEXT();
 
   // (does) ( -- value )
@@ -1529,6 +1541,7 @@ static const char CLIT_PSTR[] PROGMEM = "(clit)";
 static const char SLIT_PSTR[] PROGMEM = "(slit)";
 static const char VAR_PSTR[] PROGMEM = "(var)";
 static const char CONST_PSTR[] PROGMEM = "(const)";
+static const char FUNC_PSTR[] PROGMEM = "(func)";
 static const char DOES_PSTR[] PROGMEM = "(does)";
 static const char PARAM_PSTR[] PROGMEM = "(param)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
@@ -1652,6 +1665,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) SLIT_PSTR,
   (str_P) VAR_PSTR,
   (str_P) CONST_PSTR,
+  (str_P) FUNC_PSTR,
   (str_P) DOES_PSTR,
   (str_P) PARAM_PSTR,
   (str_P) BRANCH_PSTR,

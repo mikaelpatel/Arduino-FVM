@@ -5,6 +5,7 @@
     OP_SLIT,		 	// Push instruction pointer and branch always
     OP_VAR,			// Handle variable reference
     OP_CONST,			// Handle constant
+    OP_FUNC,			// Handle function call
     OP_DOES,			// Handle object pointer
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always

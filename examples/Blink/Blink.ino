@@ -38,7 +38,7 @@
 
 #define MEASURE
 #define BLINK_SKETCH
-// #define BLINK_TRACE
+#define BLINK_TRACE
 #define BLINK_RUN
 
 // Enable/disable virtual machine code
@@ -51,7 +51,7 @@ const char BLINK_PSTR[] PROGMEM = "blink";
 //   begin
 //     dup digitaltoggle
 //     over delay
-//   repeat
+//   again
 // ;
 const FVM::code_t BLINK_CODE[] PROGMEM = {
     FVM_OP(DUP),

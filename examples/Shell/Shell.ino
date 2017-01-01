@@ -27,32 +27,9 @@
 
 #include "FVM.h"
 
-// Forward declare object handler function (doers)
-const int ARRAY_FN = 4;
-const int TWO_CONST_FN = 5;
-
-// Declare a variable (sketch data reference)
-int X = 42;
-const int X_ID = 0;
-FVM_VARIABLE(X);
-
-// Declare a constant (16-bit value)
-const int Y_ID = 1;
-FVM_CONSTANT(Y, -42);
-
-// Declare an array with handler function
-int Z[] = { 1, 2, 4, 8 };
-const int Z_ID = 2;
-FVM_CREATE(Z, ARRAY_FN);
-
-// Declare double constant with handler function
-int C2[] = { 1, 2 };
-const int C2_ID = 3;
-FVM_CREATE(C2, TWO_CONST_FN);
-
 // Array handler function (does code)
+const int ARRAY_FN = 0;
 const char ARRAY_PSTR[] PROGMEM = "(array)";
-
 // does> ( index array-addr -- element-addr ) swap cells + ;
 const FVM::code_t ARRAY_CODE[] PROGMEM = {
   FVM_OP(DOES),
@@ -63,8 +40,8 @@ const FVM::code_t ARRAY_CODE[] PROGMEM = {
 };
 
 // Double constant handler function (does code)
+const int TWO_CONST_FN = 1;
 const char TWO_CONST_PSTR[] PROGMEM = "(2const)";
-
 // does> ( addr -- x y ) dup @ swap cell + @ ;
 const FVM::code_t TWO_CONST_CODE[] PROGMEM = {
   FVM_OP(DOES),
@@ -77,32 +54,58 @@ const FVM::code_t TWO_CONST_CODE[] PROGMEM = {
   FVM_OP(EXIT)
 };
 
+// Declare a variable (sketch data reference)
+int x = 42;
+FVM_VARIABLE(2, X, x);
+
+// Declare a constant (16-bit value)
+FVM_CONSTANT(3, Y, "y", -42);
+
+// Declare an array with handler function
+int z[] = { 1, 2, 4, 8 };
+FVM_CREATE(4, Z, ARRAY_FN, z);
+
+// Declare double constant with handler function
+int c2[] = { 1, 2 };
+FVM_CREATE(5, C2, TWO_CONST_FN, c2);
+
 // Pad area for scanned word
 const int PAD_MAX = 32;
-char PAD[PAD_MAX];
-const int PAD_ID = 6;
-FVM_VARIABLE(PAD);
+char pad[PAD_MAX];
+FVM_VARIABLE(6, PAD, pad);
+
+// Extended function call
+FVM::data_t* numbers(FVM::data_t* sp)
+{
+  *++sp = 1;
+  *++sp = 2;
+  *++sp = 3;
+  return (sp);
+}
+FVM_FUNCTION(7, NUMBERS, numbers);
 
 // Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
+  (code_P) ARRAY_CODE,
+  (code_P) TWO_CONST_CODE,
   (code_P) &X_VAR,
   (code_P) &Y_CONST,
   (code_P) &Z_VAR,
   (code_P) &C2_VAR,
-  (code_P) ARRAY_CODE,
-  (code_P) TWO_CONST_CODE,
-  (code_P) &PAD_VAR
+  (code_P) &PAD_VAR,
+  (code_P) &NUMBERS_FUNC
 };
 
 // Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
+  (str_P) ARRAY_PSTR,
+  (str_P) TWO_CONST_PSTR,
   (str_P) X_PSTR,
   (str_P) Y_PSTR,
   (str_P) Z_PSTR,
   (str_P) C2_PSTR,
-  (str_P) ARRAY_PSTR,
-  (str_P) TWO_CONST_PSTR,
   (str_P) PAD_PSTR,
+  (str_P) NUMBERS_PSTR,
   0
 };
 
@@ -143,8 +146,8 @@ void loop()
 
   // Check for quote of operation/function name
   if (buffer[0] == '\\') {
-    strcpy(PAD, buffer+1);
-    task.push((int) PAD);
+    strcpy(pad, buffer+1);
+    task.push((int) pad);
   }
   // Lookup and execute
   else
