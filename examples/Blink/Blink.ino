@@ -28,17 +28,17 @@
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
- *  +84   1958 +Blink sketch code and task
- *  +3422 5380 +Forth Virtual Machine
- *  +818  6198 +Kernel dictionary (117 words)
- *  +998  7196 +Trace mode
+ *  +88   1962 +Blink sketch code and task
+ *  +3464 5426 +Forth Virtual Machine
+ *  +826  6252 +Kernel dictionary (119 words)
+ *  +1012 7264 +Trace mode
  * ------------------------------------------------
  * Arduino Uno/IDE 1.8.0
  */
 
 #define MEASURE
 #define BLINK_SKETCH
-#define BLINK_TRACE
+// #define BLINK_TRACE
 #define BLINK_RUN
 
 // Enable/disable virtual machine code
