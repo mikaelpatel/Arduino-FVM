@@ -17,7 +17,9 @@ format.
 
 The Virtual Machine with 119 instructions is approx. 3.4 Kbyte without
 symbol table. This adds approx. 1 Kbyte. The instruction level trace
-adds an additional 1 Kbyte.
+adds an additional 1 Kbyte. Many of the kernel instructions are
+defined in both C++ and FVM instructions. This allows tailoring for
+speed and/or size.
 
 ## Install
 
