@@ -51,6 +51,7 @@ class FVM {
      * Control structure and literals
      */
     OP_EXIT,			// Function return
+    OP_MINUS_EXIT,		// Function return if zero/false
     OP_LIT,			// Inline literal constant
     OP_CLIT,		 	// Inline literal signed character constant
     OP_SLIT,		 	// Push instruction pointer and branch always

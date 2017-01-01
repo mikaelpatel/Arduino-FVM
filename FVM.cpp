@@ -137,6 +137,13 @@ int FVM::resume(task_t& task)
  DISPATCH:
   switch (ir) {
 
+  // -exit ( flag -- )
+  // Exit from call if zero/false
+  OP(MINUS_EXIT)
+    tmp = tos;
+    tos = *sp--;
+    if (tmp != 0) NEXT();
+
   // exit ( rp: ip -- )
   // Exit from call. Pop instruction pointer from return stack
   OP(EXIT)
@@ -479,11 +486,11 @@ int FVM::resume(task_t& task)
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
-  // : ?dup ( x -- x x | 0 -- 0 ) dup if dup then ;
+  // : ?dup ( x -- x x | 0 -- 0 ) dup -exit dup ;
   static const code_t QDUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
-    FVM_OP(ZERO_BRANCH), 2,
-      FVM_OP(DUP),
+    FVM_OP(MINUS_EXIT),
+    FVM_OP(DUP),
     FVM_OP(EXIT)
   };
   CALL(QDUP_CODE);
@@ -852,13 +859,13 @@ int FVM::resume(task_t& task)
 #if 0
     if (tos < 0) tos = -tos;
   NEXT();
-#elif 0
-  // : abs ( x -- |x| ) dup 0< if negate then ;
+#elif 1
+  // : abs ( x -- |x| ) dup 0< -exit negate ;
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
-    FVM_OP(ZERO_BRANCH), 2,
-      FVM_OP(NEGATE),
+    FVM_OP(MINUS_EXIT),
+    FVM_OP(NEGATE),
     FVM_OP(EXIT)
   };
   CALL(ABS_CODE);
@@ -1196,15 +1203,15 @@ int FVM::resume(task_t& task)
     }
   NEXT();
 
-  // key ( -- c ) begin ?key while yield repeat ;
+  // key ( -- c ) begin ?key -exit yield again ;
   // Wait for character and read
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
       FVM_OP(QKEY),
       FVM_OP(NOT),
-    FVM_OP(ZERO_BRANCH), 4,
+      FVM_OP(MINUS_EXIT),
       FVM_OP(YIELD),
-    FVM_OP(BRANCH), -6,
+    FVM_OP(BRANCH), -5,
     FVM_OP(EXIT)
   };
   CALL(KEY_CODE);
@@ -1256,13 +1263,13 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 #else
-  // : spaces ( n -- ) begin ?dup while space 1- repeat ;
+  // : spaces ( n -- ) begin ?dup -exit space 1- again ;
   static const code_t SPACES_CODE[] PROGMEM = {
       FVM_OP(QDUP),
-    FVM_OP(ZERO_BRANCH), 5,
+      FVM_OP(MINUS_EXIT),
       FVM_OP(SPACE),
       FVM_OP(ONE_MINUS),
-    FVM_OP(BRANCH), -6,
+    FVM_OP(BRANCH), -5,
     FVM_OP(EXIT)
   };
   CALL(SPACES_CODE);
@@ -1516,6 +1523,7 @@ int FVM::execute(const char* name, task_t& task)
 
 #if defined(FVM_DICT)
 static const char EXIT_PSTR[] PROGMEM = "exit";
+static const char MINUS_EXIT_PSTR[] PROGMEM = "-exit";
 static const char LIT_PSTR[] PROGMEM = "(lit)";
 static const char CLIT_PSTR[] PROGMEM = "(clit)";
 static const char SLIT_PSTR[] PROGMEM = "(slit)";
@@ -1638,6 +1646,7 @@ static const char NOP_PSTR[] PROGMEM = "nop";
 const str_P FVM::opstr[] PROGMEM = {
 #if defined(FVM_DICT)
   (str_P) EXIT_PSTR,
+  (str_P) MINUS_EXIT_PSTR,
   (str_P) LIT_PSTR,
   (str_P) CLIT_PSTR,
   (str_P) SLIT_PSTR,
