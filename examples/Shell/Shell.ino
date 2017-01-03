@@ -28,10 +28,8 @@
 #include "FVM.h"
 
 // Array handler function (does code)
-const int ARRAY_FN = 0;
-const char ARRAY_PSTR[] PROGMEM = "(array)";
+FVM_COLON(0, ARRAY, "(array)")
 // does> ( index array-addr -- element-addr ) swap cells + ;
-const FVM::code_t ARRAY_CODE[] PROGMEM = {
   FVM_OP(DOES),
   FVM_OP(SWAP),
   FVM_OP(CELLS),
@@ -40,10 +38,8 @@ const FVM::code_t ARRAY_CODE[] PROGMEM = {
 };
 
 // Double constant handler function (does code)
-const int TWO_CONST_FN = 1;
-const char TWO_CONST_PSTR[] PROGMEM = "(2const)";
+FVM_COLON(1, TWO_CONST, "(2const)")
 // does> ( addr -- x y ) dup @ swap cell + @ ;
-const FVM::code_t TWO_CONST_CODE[] PROGMEM = {
   FVM_OP(DOES),
   FVM_OP(DUP),
   FVM_OP(FETCH),
@@ -63,11 +59,11 @@ FVM_CONSTANT(3, Y, "y", -42);
 
 // Declare an array with handler function
 int z[] = { 1, 2, 4, 8 };
-FVM_CREATE(4, Z, ARRAY_FN, z);
+FVM_CREATE(4, Z, ARRAY, z);
 
 // Declare double constant with handler function
 int c2[] = { 1, 2 };
-FVM_CREATE(5, C2, TWO_CONST_FN, c2);
+FVM_CREATE(5, C2, TWO_CONST, c2);
 
 // Pad area for scanned word
 const int PAD_MAX = 32;
@@ -127,22 +123,7 @@ void loop()
 {
   // Scan buffer for a single word or number
   char buffer[32];
-  char* bp = buffer;
-  char c;
-
-  // Skip white space
-  do {
-    while (!Serial.available());
-    c = Serial.read();
-  } while (c <= ' ');
-
-  // Scan until white space
-  do {
-    *bp++ = c;
-    while (!Serial.available());
-    c = Serial.read();
-   } while (c > ' ');
-  *bp = 0;
+  char c = fvm.scan(buffer, task);
 
   // Check for quote of operation/function name
   if (buffer[0] == '\\') {
