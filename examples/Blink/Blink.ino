@@ -40,20 +40,43 @@
 #define BLINK_SKETCH
 #define BLINK_TRACE
 #define BLINK_RUN
+#define CODE_GENERATED
 
 // Enable/disable virtual machine code
 #if defined(BLINK_SKETCH)
 #include "FVM.h"
 
-const int BLINK_FN = 0;
-const char BLINK_PSTR[] PROGMEM = "blink";
+// Use code generated or manual coded blink sketch
+#if defined(CODE_GENERATED)
+
+const char WORD0_PSTR[] PROGMEM = "blink";
+const FVM::code_t WORD0_CODE[] PROGMEM = {
+  35, 114, 37, 110, 10, -5, 0
+};
+const char WORD1_PSTR[] PROGMEM = "sketch";
+const FVM::code_t WORD1_CODE[] PROGMEM = {
+  52, 3, 13, 111, 2, -12, 1, 3, 13, -1, 117, 0
+};
+const FVM::code_P FVM::fntab[] PROGMEM = {
+  WORD0_CODE,
+  WORD1_CODE
+};
+const str_P FVM::fnstr[] PROGMEM = {
+  (str_P) WORD0_PSTR,
+  (str_P) WORD1_PSTR,
+  0
+};
+FVM::task_t task(Serial, WORD1_CODE);
+
+#else
+
+FVM_COLON(0, BLINK, "blink")
 // : blink ( ms pin -- )
 //   begin
 //     dup digitaltoggle
 //     over delay
 //   again
 // ;
-const FVM::code_t BLINK_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(DIGITALTOGGLE),
     FVM_OP(OVER),
@@ -62,34 +85,36 @@ const FVM::code_t BLINK_CODE[] PROGMEM = {
   FVM_OP(EXIT)
 };
 
-const int SKETCH_FN = 1;
-const char SKETCH_PSTR[] PROGMEM = "sketch";
+FVM_COLON(1, SKETCH, "sketch")
 // : sketch ( -- )
 //   1 13 pinmode
 //   500 13 blink
+//   halt
 // ;
-const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(ONE),
   FVM_CLIT(13),
   FVM_OP(PINMODE),
   FVM_LIT(500),
   FVM_CLIT(13),
-  FVM_CALL(BLINK_FN),
+  FVM_CALL(BLINK),
   FVM_OP(HALT)
 };
 
+// Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
   BLINK_CODE,
   SKETCH_CODE
 };
 
+// Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) BLINK_PSTR,
   (str_P) SKETCH_PSTR,
   0
 };
-
 FVM::task_t task(Serial, SKETCH_CODE);
+#endif
+
 FVM fvm;
 #endif
 
@@ -124,6 +149,6 @@ void loop()
   Serial.print(':');
   Serial.println(us);
   Serial.flush();
-  delay(10);
+  delay(100);
 #endif
 }
