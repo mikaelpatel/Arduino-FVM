@@ -48,6 +48,28 @@ int FVM::lookup(const char* name)
   return (-1);
 }
 
+int FVM::scan(char* bp, task_t& task)
+{
+  Stream& ios = task.m_ios;
+  char c;
+
+  // Skip white space
+  do {
+    while (!ios.available());
+    c = ios.read();
+  } while (c <= ' ');
+
+  // Scan until white space
+  do {
+    *bp++ = c;
+    while (!ios.available());
+    c = ios.read();
+   } while (c > ' ');
+  *bp = 0;
+
+  return (c);
+}
+
 int FVM::resume(task_t& task)
 {
   // Restore virtual machine state

@@ -332,12 +332,58 @@ class FVM {
   FVM(void* dp0 = 0) : m_dp((uint8_t*) dp0) {}
 
   /**
+   * Get current data allocation pointer.
+   * @return pointer.
+   */
+  uint8_t* dp()
+  {
+    return (m_dp);
+  }
+
+  /**
+   * Set data allocation pointer.
+   * @param[in] s string.
+   */
+  void dp(void* dp)
+  {
+    m_dp = (uint8_t*) dp;
+  }
+
+  /**
+   * Allocate and copy given string to data area.
+   * @param[in] s string.
+   */
+  void compile(const char* s)
+  {
+    strcpy((char*) m_dp, s);
+    m_dp += strlen(s) + 1;
+  }
+
+  /**
+   * Allocate and copy given operation code to data area.
+   * @param[in] op operation code.
+   */
+  void compile(code_t op)
+  {
+    *m_dp++ = op;
+  }
+
+  /**
    * Lookup given string in dictionary. Return operation code (0..127)
    * or function index (128..255), otherwise negative error code(-1).
    * @param[in] name string.
    * @return error code.
    */
   int lookup(const char* name);
+
+  /**
+   * Scan token to given buffer. Return break character or negative
+   * error code.
+   * @param[in] bp buffer pointer.
+   * @param[in] task stream to use.
+   * @return break character or negative error code.
+   */
+  int scan(char* bp, task_t& task);
 
   /**
    * Resume task in virtual machine with given task. Returns on
@@ -372,27 +418,6 @@ class FVM {
    * @return error code.
    */
   int execute(const char* name, task_t& task);
-
-  /**
-   * Current data pointer.
-   */
-  uint8_t* dp()
-  {
-    return (m_dp);
-  }
-
-  /**
-   * Set data pointer.
-   */
-  void dp(void* dp)
-  {
-    m_dp = (uint8_t*) dp;
-  }
-
-  void compile(code_t op)
-  {
-    *m_dp++ = op;
-  }
 
   // Function code and dictionary provided by sketch
   static const code_P fntab[] PROGMEM;
@@ -478,6 +503,17 @@ class FVM {
     FVM_OP(CONST),							\
     val									\
   }
+
+/**
+ * Create a colon definition.
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] name dictionary string.
+ */
+#define FVM_COLON(id,var,name)						\
+  const int var = id;							\
+  const char var ## _PSTR[] PROGMEM = name;				\
+  const FVM::code_t var ## _CODE[] PROGMEM = {
 
 /**
  * Create an extension function handler.
