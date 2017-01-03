@@ -32,6 +32,7 @@
  *  +3510 5472 +Forth Virtual Machine
  *  +834  6306 +Kernel dictionary (120 words)
  *  +1015 7318 +Trace mode
+ *  +24   7342 +Code generated sketch
  * ------------------------------------------------
  * Arduino Uno/IDE 1.8.0
  */
@@ -49,11 +50,13 @@
 // Use code generated or manual coded blink sketch
 #if defined(CODE_GENERATED)
 
-/*
+/* Source code for token compiler. Note: constants for OUTPUT and LED.
+----------------------------------------------------------------------
 1 constant OUTPUT
 13 constant LED
 : blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
 : sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
+----------------------------------------------------------------------
 */
 
 const char WORD0_PSTR[] PROGMEM = "OUTPUT";
@@ -93,12 +96,7 @@ FVM::task_t task(Serial, WORD3_CODE);
 #else
 
 FVM_COLON(0, BLINK, "blink")
-// : blink ( ms pin -- )
-//   begin
-//     dup digitaltoggle
-//     over delay
-//   again
-// ;
+// : blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
     FVM_OP(DUP),
     FVM_OP(DIGITALTOGGLE),
     FVM_OP(OVER),
@@ -108,11 +106,7 @@ FVM_COLON(0, BLINK, "blink")
 };
 
 FVM_COLON(1, SKETCH, "sketch")
-// : sketch ( -- )
-//   1 13 pinmode
-//   500 13 blink
-//   halt
-// ;
+// : sketch ( -- ) 1 13 pinmode 500 13 blink halt ;
   FVM_OP(ONE),
   FVM_CLIT(13),
   FVM_OP(PINMODE),
