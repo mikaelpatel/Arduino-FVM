@@ -195,6 +195,31 @@ void loop()
       compiling = true;
     }
 
+    // Check for variable definition
+    else if (!strcmp_P(buffer, PSTR("variable")) && !compiling) {
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
+      fvm.compile(FVM::OP_VAR);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile((FVM::code_t) 0);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
+    }
+
+    // Check for variable definition
+    else if (!strcmp_P(buffer, PSTR("constant")) && !compiling) {
+      int val = task.pop();
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
+      fvm.compile(FVM::OP_CONST);
+      fvm.compile(val);
+      fvm.compile(val >> 8);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
+    }
+
     // Check for comment
     else if (!strcmp_P(buffer, PSTR("("))) {
       while (Serial.read() != ')') yield();
@@ -204,11 +229,23 @@ void loop()
     else if (!strcmp_P(buffer, PSTR("immediate"))) {
     }
 
+    // Check for help
+    else if (!strcmp_P(buffer, PSTR("help"))) {
+      Serial.println(F(": NAME BODY ;          - declare function"));
+      Serial.println(F("( COMMENT)             - comment"));
+      Serial.println(F("variable NAME          - create variable"));
+      Serial.println(F("VALUE constant NAME    - create constant"));
+      Serial.println(F("words                  - list functions"));
+      Serial.println(F("codegen                - generate code"));
+      Serial.println();
+    }
+
     // Check for code generation
     else if (!strcmp_P(buffer, PSTR("codegen"))) {
       codegen(Serial);
       fvm.dp(data);
       latest = data;
+      *latest = 0;
     }
 
     // Check for call
@@ -269,6 +306,8 @@ void codegen(Stream& ios)
 {
   int nr, last;
   uint8_t* dp;
+  char* name;
+  int val;
 
   // Generate function name strings and code
   dp = data;
@@ -278,20 +317,48 @@ void codegen(Stream& ios)
     ios.print(F("const char WORD"));
     ios.print(nr);
     ios.print(F("_PSTR[] PROGMEM = \""));
-    ios.print((char*) dp);
+    name = (char*) dp;
+    ios.print(name);
     ios.println(F("\";"));
-    ios.print(F("const FVM::code_t WORD"));
-    ios.print(nr);
-    ios.print(F("_CODE[] PROGMEM = {\n  "));
-    uint8_t n = strlen((char*) dp) + 1;
+    uint8_t n = strlen(name) + 1;
     dp += n;
-    for (;n < length; n++) {
-      int8_t code = (int8_t) *dp++;
-      ios.print(code);
-      if (code != 0) ios.print(F(", "));
+    switch (*dp) {
+    case FVM::OP_VAR:
+      ios.print(F("FVM::data_t WORD"));
+      ios.print(nr);
+      ios.println(';');
+      ios.print(F("const FVM::var_t WORD"));
+      ios.print(nr);
+      ios.println(F("_VAR[] PROGMEM = {"));
+      ios.println(F("  FVM::OP_VAR, "));
+      ios.print(F("  &WORD"));
+      ios.println(nr);
+      ios.println(F("};"));
+      dp += sizeof(FVM::var_t);
+      break;
+    case FVM::OP_CONST:
+      val = dp[2] << 8 | dp[1];
+      ios.print(F("const FVM::const_t WORD"));
+      ios.print(nr);
+      ios.println(F("_CONST[] PROGMEM = {"));
+      ios.println(F("  FVM::OP_CONST, "));
+      ios.print(F("  "));
+      ios.println(val);
+      ios.println(F("};"));
+      dp += sizeof(FVM::const_t);
+      break;
+    default:
+      ios.print(F("const FVM::code_t WORD"));
+      ios.print(nr);
+      ios.print(F("_CODE[] PROGMEM = {\n  "));
+      for (;n < length; n++) {
+	int8_t code = (int8_t) *dp++;
+	ios.print(code);
+	if (code != 0) ios.print(F(", "));
+      }
+      ios.println();
+      ios.println(F("};"));
     }
-    ios.println();
-    ios.println(F("};"));
     nr += 1;
   }
   last = nr;
@@ -302,9 +369,24 @@ void codegen(Stream& ios)
   ios.println(F("const FVM::code_P FVM::fntab[] PROGMEM = {"));
   while (dp < fvm.dp()) {
     uint8_t length = *dp++;
-    ios.print(F("  WORD"));
-    ios.print(nr++);
-    ios.print(F("_CODE"));
+    name = (char*) dp;
+    uint8_t n = strlen(name) + 1;
+    switch (dp[n]) {
+    case FVM::OP_VAR:
+      ios.print(F("  (code_P) &WORD"));
+      ios.print(nr++);
+      ios.print(F("_VAR"));
+      break;
+    case FVM::OP_CONST:
+      ios.print(F("  (code_P) &WORD"));
+      ios.print(nr++);
+      ios.print(F("_CONST"));
+      break;
+    default:
+      ios.print(F("  WORD"));
+      ios.print(nr++);
+      ios.print(F("_CODE"));
+    }
     if (nr != last) ios.println(','); else ios.println();
     dp += length;
   }

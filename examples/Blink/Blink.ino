@@ -49,24 +49,46 @@
 // Use code generated or manual coded blink sketch
 #if defined(CODE_GENERATED)
 
-const char WORD0_PSTR[] PROGMEM = "blink";
-const FVM::code_t WORD0_CODE[] PROGMEM = {
+/*
+1 constant OUTPUT
+13 constant LED
+: blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
+: sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
+*/
+
+const char WORD0_PSTR[] PROGMEM = "OUTPUT";
+const FVM::const_t WORD0_CONST[] PROGMEM = {
+  FVM::OP_CONST,
+  1
+};
+const char WORD1_PSTR[] PROGMEM = "LED";
+const FVM::const_t WORD1_CONST[] PROGMEM = {
+  FVM::OP_CONST,
+  13
+};
+const char WORD2_PSTR[] PROGMEM = "blink";
+const FVM::code_t WORD2_CODE[] PROGMEM = {
   35, 114, 37, 110, 10, -5, 0
 };
-const char WORD1_PSTR[] PROGMEM = "sketch";
-const FVM::code_t WORD1_CODE[] PROGMEM = {
-  52, 3, 13, 111, 2, -12, 1, 3, 13, -1, 117, 0
+const char WORD3_PSTR[] PROGMEM = "sketch";
+const FVM::code_t WORD3_CODE[] PROGMEM = {
+  -1, -2, 111, 2, -12, 1, -2, -3, 117, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
-  WORD0_CODE,
-  WORD1_CODE
+  (code_P) &WORD0_CONST,
+  (code_P) &WORD1_CONST,
+  WORD2_CODE,
+  WORD3_CODE
 };
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) WORD0_PSTR,
   (str_P) WORD1_PSTR,
+  (str_P) WORD2_PSTR,
+  (str_P) WORD3_PSTR,
   0
 };
-FVM::task_t task(Serial, WORD1_CODE);
+
+FVM::task_t task(Serial, WORD3_CODE);
 
 #else
 
