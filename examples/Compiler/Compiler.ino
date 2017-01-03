@@ -28,20 +28,16 @@
 
 #include "FVM.h"
 
+FVM_COLON(0, FORWARD_MARK, "mark>")
 // : mark> ( -- addr ) here 0 c, ;
-const int FORWARD_MARK = 0;
-const char FORWARD_MARK_PSTR[] PROGMEM = "mark>";
-const FVM::code_t FORWARD_MARK_CODE[] PROGMEM = {
   FVM_OP(HERE),
   FVM_OP(ZERO),
   FVM_OP(C_COMMA),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
 // : resolve> ( addr -- ) here over - swap c! ;
-const int FORWARD_RESOLVE = 1;
-const char FORWARD_RESOLVE_PSTR[] PROGMEM = "resolve>";
-const FVM::code_t FORWARD_RESOLVE_CODE[] PROGMEM = {
   FVM_OP(HERE),
   FVM_OP(OVER),
   FVM_OP(MINUS),
@@ -50,46 +46,36 @@ const FVM::code_t FORWARD_RESOLVE_CODE[] PROGMEM = {
   FVM_OP(EXIT)
 };
 
+FVM_COLON(2, BACKWARD_MARK, "<mark")
 // : <mark ( -- addr ) here ;
-const int BACKWARD_MARK = 2;
-const char BACKWARD_MARK_PSTR[] PROGMEM = "<mark";
-const FVM::code_t BACKWARD_MARK_CODE[] PROGMEM = {
   FVM_OP(HERE),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
 // : <resolve ( addr -- ) here - c, ;
-const int BACKWARD_RESOLVE = 3;
-const char BACKWARD_RESOLVE_PSTR[] PROGMEM = "<resolve";
-const FVM::code_t BACKWARD_RESOLVE_CODE[] PROGMEM = {
   FVM_OP(HERE),
   FVM_OP(MINUS),
   FVM_OP(C_COMMA),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(4, IF, "if")
 // : if ( -- addr ) compile (0branch) mark> ; immediate
-const int IF = 4;
-const char IF_PSTR[] PROGMEM = "if";
-const FVM::code_t IF_CODE[] PROGMEM = {
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(FORWARD_MARK),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(5, THEN, "then")
 // : then ( addr -- ) resolve> ; immediate
-const int THEN = 5;
-const char THEN_PSTR[] PROGMEM = "then";
-const FVM::code_t THEN_CODE[] PROGMEM = {
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(6, ELSE, "else")
 // : else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
-const int ELSE = 6;
-const char ELSE_PSTR[] PROGMEM = "else";
-const FVM::code_t ELSE_CODE[] PROGMEM = {
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
   FVM_CALL(FORWARD_MARK),
@@ -98,52 +84,44 @@ const FVM::code_t ELSE_CODE[] PROGMEM = {
   FVM_OP(EXIT)
 };
 
+FVM_COLON(7, BEGIN, "begin")
 // : begin ( -- addr ) <mark ; immediate
-const int BEGIN = 7;
-const char BEGIN_PSTR[] PROGMEM = "begin";
-const FVM::code_t BEGIN_CODE[] PROGMEM = {
   FVM_CALL(BACKWARD_MARK),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(8, AGAIN, "again")
 // : again ( addr -- ) compile (branch) <resolve ; immediate
-const int AGAIN = 8;
-const char AGAIN_PSTR[] PROGMEM = "again";
-const FVM::code_t AGAIN_CODE[] PROGMEM = {
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
   FVM_CALL(BACKWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
+FVM_COLON(9, UNTIL, "until")
 // : until ( addr -- ) compile (0branch) <resolve ; immediate
-const int UNTIL = 9;
-const char UNTIL_PSTR[] PROGMEM = "until";
-const FVM::code_t UNTIL_CODE[] PROGMEM = {
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(BACKWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
-// : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
-const int WHILE = 10;
-const char WHILE_PSTR[] PROGMEM = "while";
 #if 0
-const FVM::code_t WHILE_CODE[] PROGMEM = {
+FVM_COLON(10, WHILE, "while")
+// : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(FORWARD_MARK),
   FVM_OP(EXIT)
 };
 #else
+const int WHILE = 10;
+const char WHILE_PSTR[] PROGMEM = "while";
 # define WHILE_CODE IF_CODE
 #endif
 
+FVM_COLON(11, REPEAT, "repeat")
 // : repeat (addr1 addr2 -- ) swap [compile] again resolve> ; immediate
-const int REPEAT = 11;
-const char REPEAT_PSTR[] PROGMEM = "repeat";
-const FVM::code_t REPEAT_CODE[] PROGMEM = {
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
   FVM_CALL(FORWARD_RESOLVE),
@@ -183,10 +161,8 @@ const str_P FVM::fnstr[] PROGMEM = {
 
 // Data area for the shell
 uint8_t data[128];
-char pad[32];
-char id[32];
-int nr = 0;
 bool compiling = false;
+uint8_t* latest = data;
 
 // Forth virtual machine and task
 FVM fvm(data);
@@ -205,17 +181,17 @@ void loop()
   int op;
 
   // Scan buffer for a single word or number
-  scan(buffer);
+  fvm.scan(buffer, task);
   op = fvm.lookup(buffer);
 
   // Check for special words or literals
   if (op < 0) {
 
     // Check for start of definition
-    if (buffer[0] == ':' && !compiling) {
-      strcpy(id, buffer + 1);
-      scan(buffer);
-      strcpy(pad, buffer);
+    if (!strcmp_P(buffer, PSTR(":")) && !compiling) {
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
       compiling = true;
     }
 
@@ -224,22 +200,38 @@ void loop()
       while (Serial.read() != ')') yield();
     }
 
+    // Check for immediate and ignore
+    else if (!strcmp_P(buffer, PSTR("immediate"))) {
+    }
+
+    // Check for code generation
+    else if (!strcmp_P(buffer, PSTR("codegen"))) {
+      codegen(Serial);
+      fvm.dp(data);
+      latest = data;
+    }
+
+    // Check for call
+    else if ((op = lookup(buffer)) > 0) {
+      fvm.compile(-op);
+    }
+
     // Check for end of definition
     else if (!strcmp_P(buffer, PSTR(";")) && compiling) {
       fvm.compile(FVM::OP_EXIT);
-      codegen(Serial);
-      fvm.dp(data);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
       compiling = false;
     }
 
-    // Assume number
+    // Assume number (should check)
     else {
       int value = atoi(buffer);
       if (compiling) {
 	if (value < -128 || value > 127) {
 	  fvm.compile(FVM::OP_LIT);
-	  fvm.compile(value >> 8);
 	  fvm.compile(value);
+	  fvm.compile(value >> 8);
 	}
 	else {
 	  fvm.compile(FVM::OP_CLIT);
@@ -261,42 +253,74 @@ void loop()
   }
 }
 
-void scan(char* bp)
+int lookup(const char* s)
 {
-  char c;
-  do {
-    while (!Serial.available());
-    c = Serial.read();
-  } while (c <= ' ');
-  do {
-    *bp++ = c;
-    while (!Serial.available());
-    c = Serial.read();
-   } while (c > ' ');
-  *bp = 0;
+  int res = 1;
+  uint8_t* dp = data;
+  while (dp < fvm.dp()) {
+    if (!strcmp(s, (const char*) dp + 1)) return (res);
+    dp += ((uint8_t) *dp) + 1;
+    res += 1;
+  }
+  return (-1);
 }
 
 void codegen(Stream& ios)
 {
-  ios.print(F("const int "));
-  ios.print(id);
-  ios.print(F(" = "));
-  ios.print(nr++);
-  ios.println(F(";"));
+  int nr, last;
+  uint8_t* dp;
 
-  ios.print(F("const char "));
-  ios.print(id);
-  ios.print(F("_PSTR[] PROGMEM = \""));
-  ios.print(pad);
-  ios.println(F("\";"));
-
-  ios.print(F("const FVM::code_t "));
-  ios.print(id);
-  ios.print(F("_CODE[] PROGMEM = {\n  "));
-  for (uint8_t* dp = data; dp < fvm.dp(); dp++) {
-    ios.print((int8_t) *dp);
-    if ((dp + 1) < fvm.dp()) ios.print(F(", "));
+  // Generate function name strings and code
+  dp = data;
+  nr = 0;
+  while (dp < fvm.dp()) {
+    uint8_t length = *dp++;
+    ios.print(F("const char WORD"));
+    ios.print(nr);
+    ios.print(F("_PSTR[] PROGMEM = \""));
+    ios.print((char*) dp);
+    ios.println(F("\";"));
+    ios.print(F("const FVM::code_t WORD"));
+    ios.print(nr);
+    ios.print(F("_CODE[] PROGMEM = {\n  "));
+    uint8_t n = strlen((char*) dp) + 1;
+    dp += n;
+    for (;n < length; n++) {
+      int8_t code = (int8_t) *dp++;
+      ios.print(code);
+      if (code != 0) ios.print(F(", "));
+    }
+    ios.println();
+    ios.println(F("};"));
+    nr += 1;
   }
-  ios.println();
+  last = nr;
+
+  // Generate function code table
+  nr = 0;
+  dp = data;
+  ios.println(F("const FVM::code_P FVM::fntab[] PROGMEM = {"));
+  while (dp < fvm.dp()) {
+    uint8_t length = *dp++;
+    ios.print(F("  WORD"));
+    ios.print(nr++);
+    ios.print(F("_CODE"));
+    if (nr != last) ios.println(','); else ios.println();
+    dp += length;
+  }
+  ios.println(F("};"));
+
+  // Generate function string table
+  nr = 0;
+  dp = data;
+  ios.println(F("const str_P FVM::fnstr[] PROGMEM = {"));
+  while (dp < fvm.dp()) {
+    uint8_t length = *dp++;
+    ios.print(F("  (str_P) WORD"));
+    ios.print(nr++);
+    ios.println(F("_PSTR,"));
+    dp += length;
+  }
+  ios.println(F("  0"));
   ios.println(F("};"));
 }
