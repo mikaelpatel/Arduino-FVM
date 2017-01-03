@@ -28,6 +28,9 @@
 
 #include "FVM.h"
 
+// Dictionary entry prefix (C++)
+#define PREFIX "WORD"
+
 FVM_COLON(0, FORWARD_MARK, "mark>")
 // : mark> ( -- addr ) here 0 c, ;
   FVM_OP(HERE),
@@ -160,7 +163,8 @@ const str_P FVM::fnstr[] PROGMEM = {
 };
 
 // Data area for the shell
-uint8_t data[128];
+const int DATA_MAX = 1024;
+uint8_t data[DATA_MAX];
 bool compiling = false;
 uint8_t* latest = data;
 
@@ -179,9 +183,10 @@ void loop()
 {
   char buffer[32];
   int op;
+  char c;
 
   // Scan buffer for a single word or number
-  fvm.scan(buffer, task);
+  c = fvm.scan(buffer, task);
   op = fvm.lookup(buffer);
 
   // Check for special words or literals
@@ -225,8 +230,22 @@ void loop()
       while (Serial.read() != ')') yield();
     }
 
-    // Check for immediate and ignore
-    else if (!strcmp_P(buffer, PSTR("immediate"))) {
+    // Check for room; available memory
+    else if (!strcmp_P(buffer, PSTR("room")) && !compiling) {
+      task.push(DATA_MAX - (fvm.dp() - data));
+    }
+
+    // Check for list compiled words
+    else if (!strcmp_P(buffer, PSTR("compiled-words"))) {
+      words(Serial);
+    }
+
+    // Check for code generation
+    else if (!strcmp_P(buffer, PSTR("generate-code")) && !compiling) {
+      codegen(Serial);
+      fvm.dp(data);
+      latest = data;
+      *latest = 0;
     }
 
     // Check for help
@@ -235,22 +254,15 @@ void loop()
       Serial.println(F("( COMMENT)             - comment"));
       Serial.println(F("variable NAME          - create variable"));
       Serial.println(F("VALUE constant NAME    - create constant"));
-      Serial.println(F("words                  - list functions"));
-      Serial.println(F("codegen                - generate code"));
+      Serial.println(F("compiled-words         - list compiled words"));
+      Serial.println(F("generate-code          - print source code"));
+      Serial.println(F("room                   - available memory"));
       Serial.println();
     }
 
-    // Check for code generation
-    else if (!strcmp_P(buffer, PSTR("codegen"))) {
-      codegen(Serial);
-      fvm.dp(data);
-      latest = data;
-      *latest = 0;
-    }
-
-    // Check for call
-    else if ((op = lookup(buffer)) > 0) {
-      fvm.compile(-op);
+    // Check for function call (defined word)
+    else if ((op = lookup(buffer)) < 0) {
+      fvm.compile(op);
     }
 
     // Check for end of definition
@@ -288,18 +300,37 @@ void loop()
   else {
     fvm.execute(op, task);
   }
+
+  // Prompt on end of line
+  if (c == '\n' && !compiling) Serial.println(F(" ok"));
 }
 
 int lookup(const char* s)
 {
-  int res = 1;
+  int op = -1;
   uint8_t* dp = data;
   while (dp < fvm.dp()) {
-    if (!strcmp(s, (const char*) dp + 1)) return (res);
+    if (!strcmp(s, (const char*) dp + 1)) return (op);
     dp += ((uint8_t) *dp) + 1;
-    res += 1;
+    op -= 1;
   }
-  return (-1);
+  return (0);
+}
+
+void words(Stream& ios)
+{
+  uint8_t* dp = data;
+  int nr = 0;
+  while (dp < fvm.dp()) {
+    ios.print(nr++);
+    ios.print(':');
+    ios.print(dp - data);
+    ios.print(':');
+    ios.print(*dp);
+    ios.print(':');
+    ios.println((const char*) dp + 1);
+    dp += ((uint8_t) *dp) + 1;
+  }
 }
 
 void codegen(Stream& ios)
@@ -314,7 +345,7 @@ void codegen(Stream& ios)
   nr = 0;
   while (dp < fvm.dp()) {
     uint8_t length = *dp++;
-    ios.print(F("const char WORD"));
+    ios.print(F("const char " PREFIX));
     ios.print(nr);
     ios.print(F("_PSTR[] PROGMEM = \""));
     name = (char*) dp;
@@ -324,21 +355,21 @@ void codegen(Stream& ios)
     dp += n;
     switch (*dp) {
     case FVM::OP_VAR:
-      ios.print(F("FVM::data_t WORD"));
+      ios.print(F("FVM::data_t " PREFIX));
       ios.print(nr);
       ios.println(';');
-      ios.print(F("const FVM::var_t WORD"));
+      ios.print(F("const FVM::var_t " PREFIX));
       ios.print(nr);
       ios.println(F("_VAR[] PROGMEM = {"));
       ios.println(F("  FVM::OP_VAR, "));
-      ios.print(F("  &WORD"));
+      ios.print(F("  &" PREFIX));
       ios.println(nr);
       ios.println(F("};"));
       dp += sizeof(FVM::var_t);
       break;
     case FVM::OP_CONST:
       val = dp[2] << 8 | dp[1];
-      ios.print(F("const FVM::const_t WORD"));
+      ios.print(F("const FVM::const_t " PREFIX));
       ios.print(nr);
       ios.println(F("_CONST[] PROGMEM = {"));
       ios.println(F("  FVM::OP_CONST, "));
@@ -348,7 +379,7 @@ void codegen(Stream& ios)
       dp += sizeof(FVM::const_t);
       break;
     default:
-      ios.print(F("const FVM::code_t WORD"));
+      ios.print(F("const FVM::code_t " PREFIX));
       ios.print(nr);
       ios.print(F("_CODE[] PROGMEM = {\n  "));
       for (;n < length; n++) {
@@ -373,17 +404,17 @@ void codegen(Stream& ios)
     uint8_t n = strlen(name) + 1;
     switch (dp[n]) {
     case FVM::OP_VAR:
-      ios.print(F("  (code_P) &WORD"));
+      ios.print(F("  (code_P) &" PREFIX));
       ios.print(nr++);
       ios.print(F("_VAR"));
       break;
     case FVM::OP_CONST:
-      ios.print(F("  (code_P) &WORD"));
+      ios.print(F("  (code_P) &" PREFIX));
       ios.print(nr++);
       ios.print(F("_CONST"));
       break;
     default:
-      ios.print(F("  WORD"));
+      ios.print(F("  " PREFIX));
       ios.print(nr++);
       ios.print(F("_CODE"));
     }
@@ -398,7 +429,7 @@ void codegen(Stream& ios)
   ios.println(F("const str_P FVM::fnstr[] PROGMEM = {"));
   while (dp < fvm.dp()) {
     uint8_t length = *dp++;
-    ios.print(F("  (str_P) WORD"));
+    ios.print(F("  (str_P) " PREFIX));
     ios.print(nr++);
     ios.println(F("_PSTR,"));
     dp += length;
