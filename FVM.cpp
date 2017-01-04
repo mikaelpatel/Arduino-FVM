@@ -1393,6 +1393,12 @@ int FVM::resume(task_t& task)
   CALL(DOT_S_CODE);
 #endif
 
+  // ." string" ( -- )
+  // Print string
+  OP(DOT_QUOTE)
+    ip += ios.print((const __FlashStringHelper*) ip) + 1;
+  NEXT();
+
   // .name ( x -- length )
   // Print operation/function name
   OP(DOT_NAME)
@@ -1408,13 +1414,13 @@ int FVM::resume(task_t& task)
 
   // ? ( addr -- ) @ . ;
   // Print value of variable
-  OP(Q)
-  static const code_t Q_CODE[] PROGMEM = {
+  OP(QUESTION)
+  static const code_t QUESTION_CODE[] PROGMEM = {
     FVM_OP(FETCH),
     FVM_OP(DOT),
     FVM_OP(EXIT)
   };
-  CALL(Q_CODE);
+  CALL(QUESTION_CODE);
 
   // delay ( ms -- )
   // Yield while waiting given number of milli-seconds
@@ -1662,8 +1668,9 @@ static const char SPACES_PSTR[] PROGMEM = "spaces";
 static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
+static const char DOT_QUOTE_PSTR[] PROGMEM = "(.\")";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
-static const char Q_PSTR[] PROGMEM = "?";
+static const char QUESTION_PSTR[] PROGMEM = "?";
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1786,8 +1793,9 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) U_DOT_PSTR,
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
+  (str_P) DOT_QUOTE_PSTR,
   (str_P) DOT_NAME_PSTR,
-  (str_P) Q_PSTR,
+  (str_P) QUESTION_PSTR,
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,

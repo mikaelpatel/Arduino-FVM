@@ -29,10 +29,10 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +88   1962 +Blink sketch code and task
- *  +3510 5472 +Forth Virtual Machine
- *  +834  6306 +Kernel dictionary (120 words)
- *  +1015 7318 +Trace mode
- *  +24   7342 +Code generated sketch
+ *  +3564 5526 +Forth Virtual Machine
+ *  +842  6368 +Kernel dictionary (121 words)
+ *  +988  7356 +Trace mode
+ *  +24   7380 +Code generated sketch
  * ------------------------------------------------
  * Arduino Uno/IDE 1.8.0
  */
@@ -61,21 +61,19 @@
 
 const char WORD0_PSTR[] PROGMEM = "OUTPUT";
 const FVM::const_t WORD0_CONST[] PROGMEM = {
-  FVM::OP_CONST,
-  1
+  FVM::OP_CONST, 1
 };
 const char WORD1_PSTR[] PROGMEM = "LED";
 const FVM::const_t WORD1_CONST[] PROGMEM = {
-  FVM::OP_CONST,
-  13
+  FVM::OP_CONST, 13
 };
 const char WORD2_PSTR[] PROGMEM = "blink";
 const FVM::code_t WORD2_CODE[] PROGMEM = {
-  35, 114, 37, 110, 10, -5, 0
+  35, 115, 37, 111, 10, -5, 0
 };
 const char WORD3_PSTR[] PROGMEM = "sketch";
 const FVM::code_t WORD3_CODE[] PROGMEM = {
-  -1, -2, 111, 2, -12, 1, -2, -3, 117, 0
+  -1, -2, 112, 2, -12, 1, -2, -3, 118, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &WORD0_CONST,

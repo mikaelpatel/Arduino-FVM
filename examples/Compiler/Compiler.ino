@@ -230,6 +230,18 @@ void loop()
       while (Serial.read() != ')') yield();
     }
 
+    // Check for print string literal
+    else if (!strcmp_P(buffer, PSTR(".\"")) && compiling) {
+      fvm.compile(FVM::OP_DOT_QUOTE);
+      while (1) {
+	while (!Serial.available()) yield();
+	c = Serial.read();
+	if (c == '\"') break;
+	fvm.compile(c);
+      }
+      fvm.compile((FVM::code_t) 0);
+    }
+
     // Check for room; available memory
     else if (!strcmp_P(buffer, PSTR("room")) && !compiling) {
       task.push(DATA_MAX - (fvm.dp() - data));
@@ -361,8 +373,7 @@ void codegen(Stream& ios)
       ios.print(F("const FVM::var_t " PREFIX));
       ios.print(nr);
       ios.println(F("_VAR[] PROGMEM = {"));
-      ios.println(F("  FVM::OP_VAR, "));
-      ios.print(F("  &" PREFIX));
+      ios.print(F("  FVM::OP_VAR, &" PREFIX));
       ios.println(nr);
       ios.println(F("};"));
       dp += sizeof(FVM::var_t);
@@ -372,8 +383,7 @@ void codegen(Stream& ios)
       ios.print(F("const FVM::const_t " PREFIX));
       ios.print(nr);
       ios.println(F("_CONST[] PROGMEM = {"));
-      ios.println(F("  FVM::OP_CONST, "));
-      ios.print(F("  "));
+      ios.print(F("  FVM::OP_CONST, "));
       ios.println(val);
       ios.println(F("};"));
       dp += sizeof(FVM::const_t);
@@ -382,10 +392,10 @@ void codegen(Stream& ios)
       ios.print(F("const FVM::code_t " PREFIX));
       ios.print(nr);
       ios.print(F("_CODE[] PROGMEM = {\n  "));
-      for (;n < length; n++) {
+      while (n < length) {
 	int8_t code = (int8_t) *dp++;
 	ios.print(code);
-	if (code != 0) ios.print(F(", "));
+	if (++n < length) ios.print(F(", "));
       }
       ios.println();
       ios.println(F("};"));

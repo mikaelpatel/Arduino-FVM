@@ -196,8 +196,9 @@ class FVM {
     OP_U_DOT,			// Print top of stack as unsigned
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
+    OP_DOT_QUOTE,		// Print string
     OP_DOT_NAME,		// Print operation/function name
-    OP_Q,			// Print value of variable
+    OP_QUESTION,		// Print value of variable
 
     /*
      * Arduino extensions
