@@ -38,10 +38,10 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(TWO),			// 0 1
   FVM_OP(SWAP),			// 0 1 2
   FVM_OP(ROT),			// 0 2 1
-  FVM_OP(QDUP),			// 2 1 0
+  FVM_OP(QUESTION_DUP),		// 2 1 0
   FVM_OP(OVER),			// 2 1 0
   FVM_OP(TUCK),			// 2 1 0 1
-  FVM_OP(QDUP),			// 2 1 1 0 1
+  FVM_OP(QUESTION_DUP),		// 2 1 1 0 1
   FVM_OP(DROP),			// 2 1 1 0 1 1
   FVM_OP(NIP),			// 2 1 1 0 1
   FVM_OP(DEPTH),		// 2 1 1 1

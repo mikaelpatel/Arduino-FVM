@@ -442,7 +442,7 @@ int FVM::resume(task_t& task)
 
   // ?r ( rp: x -- x-1/0, rp: 1 -- /-1 )
   // Decrement top of return stack and check zero
-  OP(QR)
+  OP(QUESTION_R)
     *++sp = tos;
     tmp = ((data_t) *rp) - 1;
     if (tmp != 0) {
@@ -515,19 +515,19 @@ int FVM::resume(task_t& task)
 
   // ?dup ( x -- x x | 0 -- 0 )
   // Duplicate non zero top of stack
-  OP(QDUP)
+  OP(QUESTION_DUP)
 #if 0
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
   // : ?dup ( x -- x x | 0 -- 0 ) dup -exit dup ;
-  static const code_t QDUP_CODE[] PROGMEM = {
+  static const code_t QUESTION_DUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(MINUS_EXIT),
     FVM_OP(DUP),
     FVM_OP(EXIT)
   };
-  CALL(QDUP_CODE);
+  CALL(QUESTION_DUP_CODE);
 #endif
 
   // over ( x y -- x y x )
@@ -1162,7 +1162,7 @@ int FVM::resume(task_t& task)
     FVM_OP(ZERO),
       FVM_OP(DUP),
       FVM_OP(DOT_NAME),
-      FVM_OP(QDUP),
+      FVM_OP(QUESTION_DUP),
     FVM_OP(ZERO_BRANCH), 17,
       FVM_CLIT(16),
       FVM_OP(SWAP),
@@ -1226,7 +1226,7 @@ int FVM::resume(task_t& task)
 
   // ?key ( -- c -1/0 )
   // Read character if available
-  OP(QKEY)
+  OP(QUESTION_KEY)
     *++sp = tos;
     if (ios.available()) {
       *++sp = ios.read();
@@ -1241,7 +1241,7 @@ int FVM::resume(task_t& task)
   // Wait for character and read
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
-      FVM_OP(QKEY),
+      FVM_OP(QUESTION_KEY),
       FVM_OP(NOT),
       FVM_OP(MINUS_EXIT),
       FVM_OP(YIELD),
@@ -1299,7 +1299,7 @@ int FVM::resume(task_t& task)
 #else
   // : spaces ( n -- ) begin ?dup -exit space 1- again ;
   static const code_t SPACES_CODE[] PROGMEM = {
-      FVM_OP(QDUP),
+      FVM_OP(QUESTION_DUP),
       FVM_OP(MINUS_EXIT),
       FVM_OP(SPACE),
       FVM_OP(ONE_MINUS),
@@ -1380,7 +1380,7 @@ int FVM::resume(task_t& task)
     FVM_CLIT(':'),
     FVM_OP(EMIT),
     FVM_OP(SPACE),
-      FVM_OP(QDUP),
+      FVM_OP(QUESTION_DUP),
     FVM_OP(ZERO_BRANCH), 7,
       FVM_OP(DUP),
       FVM_OP(PICK),
@@ -1591,14 +1591,14 @@ static const char CELLS_PSTR[] PROGMEM = "cells";
 static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
-static const char QR_PSTR[] PROGMEM = "?r";
+static const char QUESTION_R_PSTR[] PROGMEM = "?r";
 static const char SP_PSTR[] PROGMEM = "sp";
 static const char DEPTH_PSTR[] PROGMEM = "depth";
 static const char DROP_PSTR[] PROGMEM = "drop";
 static const char NIP_PSTR[] PROGMEM = "nip";
 static const char EMPTY_PSTR[] PROGMEM = "empty";
 static const char DUP_PSTR[] PROGMEM = "dup";
-static const char QDUP_PSTR[] PROGMEM = "?dup";
+static const char QUESTION_DUP_PSTR[] PROGMEM = "?dup";
 static const char OVER_PSTR[] PROGMEM = "over";
 static const char TUCK_PSTR[] PROGMEM = "tuck";
 static const char PICK_PSTR[] PROGMEM = "pick";
@@ -1659,7 +1659,7 @@ static const char WORDS_PSTR[] PROGMEM = "words";
 static const char BASE_PSTR[] PROGMEM = "base";
 static const char HEX_PSTR[] PROGMEM = "hex";
 static const char DECIMAL_PSTR[] PROGMEM = "decimal";
-static const char QKEY_PSTR[] PROGMEM = "?key";
+static const char QUESTION_KEY_PSTR[] PROGMEM = "?key";
 static const char KEY_PSTR[] PROGMEM = "key";
 static const char EMIT_PSTR[] PROGMEM = "emit";
 static const char CR_PSTR[] PROGMEM = "cr";
@@ -1716,14 +1716,14 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) TO_R_PSTR,
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
-  (str_P) QR_PSTR,
+  (str_P) QUESTION_R_PSTR,
   (str_P) SP_PSTR,
   (str_P) DEPTH_PSTR,
   (str_P) DROP_PSTR,
   (str_P) NIP_PSTR,
   (str_P) EMPTY_PSTR,
   (str_P) DUP_PSTR,
-  (str_P) QDUP_PSTR,
+  (str_P) QUESTION_DUP_PSTR,
   (str_P) OVER_PSTR,
   (str_P) TUCK_PSTR,
   (str_P) PICK_PSTR,
@@ -1784,7 +1784,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) BASE_PSTR,
   (str_P) HEX_PSTR,
   (str_P) DECIMAL_PSTR,
-  (str_P) QKEY_PSTR,
+  (str_P) QUESTION_KEY_PSTR,
   (str_P) KEY_PSTR,
   (str_P) EMIT_PSTR,
   (str_P) CR_PSTR,

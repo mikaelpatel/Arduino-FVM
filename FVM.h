@@ -87,7 +87,7 @@ class FVM {
     OP_TO_R,			// Push data on return stack
     OP_R_FROM,			// Pop data from return stack
     OP_R_FETCH,			// Copy from return stack
-    OP_QR,			// Decrement top of return stack
+    OP_QUESTION_R,		// Decrement top of return stack
 
     /*
      * Parameter stack
@@ -98,7 +98,7 @@ class FVM {
     OP_NIP,			// Drop next top of stack
     OP_EMPTY,			// Empty stack
     OP_DUP,			// Duplicate top of stack
-    OP_QDUP,			// Duplicate top of stack if not zero
+    OP_QUESTION_DUP,		// Duplicate top of stack if not zero
     OP_OVER,			// Duplicate next top of stack
     OP_TUCK,			// Duplicate top of stack and rotate
     OP_PICK,			// Duplicate index stack element
@@ -187,7 +187,7 @@ class FVM {
     OP_BASE,			// Base for number conversion
     OP_HEX,			// Set hexa-decimal number conversion base
     OP_DECIMAL,			// Set decimal number conversion base
-    OP_QKEY,			// Read character if available
+    OP_QUESTION_KEY,		// Read character if available
     OP_KEY,			// Wait for character and read
     OP_EMIT,			// Print character
     OP_CR,			// Print new-line
