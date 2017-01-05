@@ -3,7 +3,7 @@
  * @version 1.0
  *
  * @section License
- * Copyright (C) 2016, Mikael Patel
+ * Copyright (C) 2016-2017, Mikael Patel
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,10 +29,10 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +88   1962 +Blink sketch code and task
- *  +3564 5526 +Forth Virtual Machine
- *  +842  6368 +Kernel dictionary (121 words)
- *  +988  7356 +Trace mode
- *  +24   7380 +Code generated sketch
+ *  +3750 5712 +Forth Virtual Machine
+ *  +892  6604 +Kernel dictionary (128 words)
+ *  +986  7590 +Trace mode
+ *  +24   7614 +Code generated sketch
  * ------------------------------------------------
  * Arduino Uno/IDE 1.8.0
  */
@@ -69,11 +69,11 @@ const FVM::const_t WORD1_CONST[] PROGMEM = {
 };
 const char WORD2_PSTR[] PROGMEM = "blink";
 const FVM::code_t WORD2_CODE[] PROGMEM = {
-  35, 115, 37, 111, 10, -5, 0
+  40, 121, 42, 117, 10, -5, 0
 };
 const char WORD3_PSTR[] PROGMEM = "sketch";
 const FVM::code_t WORD3_CODE[] PROGMEM = {
-  -1, -2, 112, 2, -12, 1, -2, -3, 118, 0
+  -1, -2, 118, 2, -12, 1, -2, -3, 124, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &WORD0_CONST,

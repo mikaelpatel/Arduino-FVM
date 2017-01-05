@@ -3,7 +3,7 @@
  * @version 1.0
  *
  * @section License
- * Copyright (C) 2016, Mikael Patel
+ * Copyright (C) 2016-2017, Mikael Patel
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -248,6 +248,64 @@ int FVM::resume(task_t& task)
     tos = *sp--;
   NEXT();
 
+  // (do) ( high low -- rp: high low )
+  // Start loop block with index [low..high].
+  OP(DO)
+    tmp = *sp--;
+    if (tos != tmp) {
+      *++rp = (code_t*) tmp;
+      *++rp = (code_t*) tos;
+      ip += 1;
+    }
+    else {
+      ir = (int8_t) FETCH(ip);
+      ip += ir;
+    }
+    tos = *sp--;
+  NEXT();
+
+  // j ( -- index )
+  // Outer loop index.
+  OP(J)
+    *++sp = tos;
+    tos = (data_t) *(rp - 2);
+  NEXT();
+
+  // leave ( -- rp: high high )
+  // Mark loop block as completed
+  OP(LEAVE)
+    *rp = *(rp - 1);
+  NEXT();
+
+  // (loop) ( -- )
+  // End loop block (increment index by one)
+  OP(LOOP)
+    if (*rp != *(rp - 1)) {
+      *rp += 1;
+      ir = (int8_t) FETCH(ip);
+      ip += ir;
+    }
+    else {
+      rp -= 2;
+      ip += 1;
+    }
+  NEXT();
+
+  // (+loop) ( n -- )
+  // End loop block (increment index by top of stack)
+  OP(PLUS_LOOP)
+    *rp += tos;
+    if (*rp < *(rp - 1)) {
+      ir = (int8_t) FETCH(ip);
+      ip += ir;
+    }
+    else {
+      rp -= 2;
+      ip += 1;
+    }
+    tos = *sp--;
+  NEXT();
+
   // (compile) ( -- )
   // Add inline operation/function
   OP(COMPILE)
@@ -433,26 +491,15 @@ int FVM::resume(task_t& task)
     tos = (data_t) *rp--;
   NEXT();
 
+  // i ( -- i )
+  // Current loop index
+  OP(I)
+
   // r@ ( rp: x -- x, rp: x )
   // Copy data from top of return stack
   OP(R_FETCH)
     *++sp = tos;
     tos = (data_t) *rp;
-  NEXT();
-
-  // ?r ( rp: x -- x-1/0, rp: 1 -- /-1 )
-  // Decrement top of return stack and check zero
-  OP(QUESTION_R)
-    *++sp = tos;
-    tmp = ((data_t) *rp) - 1;
-    if (tmp != 0) {
-      *rp = (code_t*) tmp;
-      tos = 0;
-    }
-    else {
-      rp -= 1;
-      tos = -1;
-    }
   NEXT();
 
   // sp ( -- addr )
@@ -1394,9 +1441,16 @@ int FVM::resume(task_t& task)
 #endif
 
   // ." string" ( -- )
-  // Print string
+  // Print program memory string
   OP(DOT_QUOTE)
     ip += ios.print((const __FlashStringHelper*) ip) + 1;
+  NEXT();
+
+  // type ( addr -- )
+  // Print string
+  OP(TYPE)
+    ios.print((const char*) tos);
+    tos = *sp--;
   NEXT();
 
   // .name ( x -- length )
@@ -1574,6 +1628,12 @@ static const char DOES_PSTR[] PROGMEM = "(does)";
 static const char PARAM_PSTR[] PROGMEM = "(param)";
 static const char BRANCH_PSTR[] PROGMEM = "(branch)";
 static const char ZERO_BRANCH_PSTR[] PROGMEM = "(0branch)";
+static const char DO_PSTR[] PROGMEM = "(do)";
+static const char I_PSTR[] PROGMEM = "i";
+static const char J_PSTR[] PROGMEM = "j";
+static const char LEAVE_PSTR[] PROGMEM = "leave";
+static const char LOOP_PSTR[] PROGMEM = "(loop)";
+static const char PLUS_LOOP_PSTR[] PROGMEM = "(+loop)";
 static const char COMPILE_PSTR[] PROGMEM = "(compile)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
 static const char TRACE_PSTR[] PROGMEM = "trace";
@@ -1591,7 +1651,6 @@ static const char CELLS_PSTR[] PROGMEM = "cells";
 static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
-static const char QUESTION_R_PSTR[] PROGMEM = "?r";
 static const char SP_PSTR[] PROGMEM = "sp";
 static const char DEPTH_PSTR[] PROGMEM = "depth";
 static const char DROP_PSTR[] PROGMEM = "drop";
@@ -1669,6 +1728,7 @@ static const char U_DOT_PSTR[] PROGMEM = "u.";
 static const char DOT_PSTR[] PROGMEM = ".";
 static const char DOT_S_PSTR[] PROGMEM = ".s";
 static const char DOT_QUOTE_PSTR[] PROGMEM = "(.\")";
+static const char TYPE_PSTR[] PROGMEM = "type";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
 static const char QUESTION_PSTR[] PROGMEM = "?";
 static const char MICROS_PSTR[] PROGMEM = "micros";
@@ -1682,6 +1742,7 @@ static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
 static const char HALT_PSTR[] PROGMEM = "halt";
 static const char YIELD_PSTR[] PROGMEM = "yield";
+static const char TRAP_PSTR[] PROGMEM = "trap";
 static const char NOP_PSTR[] PROGMEM = "nop";
 #endif
 
@@ -1699,6 +1760,12 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) PARAM_PSTR,
   (str_P) BRANCH_PSTR,
   (str_P) ZERO_BRANCH_PSTR,
+  (str_P) DO_PSTR,
+  (str_P) I_PSTR,
+  (str_P) J_PSTR,
+  (str_P) LEAVE_PSTR,
+  (str_P) LOOP_PSTR,
+  (str_P) PLUS_LOOP_PSTR,
   (str_P) COMPILE_PSTR,
   (str_P) EXECUTE_PSTR,
   (str_P) TRACE_PSTR,
@@ -1716,7 +1783,6 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) TO_R_PSTR,
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
-  (str_P) QUESTION_R_PSTR,
   (str_P) SP_PSTR,
   (str_P) DEPTH_PSTR,
   (str_P) DROP_PSTR,
@@ -1794,6 +1860,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DOT_PSTR,
   (str_P) DOT_S_PSTR,
   (str_P) DOT_QUOTE_PSTR,
+  (str_P) TYPE_PSTR,
   (str_P) DOT_NAME_PSTR,
   (str_P) QUESTION_PSTR,
   (str_P) MICROS_PSTR,
@@ -1807,6 +1874,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ANALOGWRITE_PSTR,
   (str_P) HALT_PSTR,
   (str_P) YIELD_PSTR,
+  (str_P) TRAP_PSTR,
   (str_P) NOP_PSTR,
 #endif
   0

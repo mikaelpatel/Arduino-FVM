@@ -3,7 +3,7 @@
  * @version 1.0
  *
  * @section License
- * Copyright (C) 2016, Mikael Patel
+ * Copyright (C) 2016-2017, Mikael Patel
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -124,12 +124,49 @@ const char WHILE_PSTR[] PROGMEM = "while";
 #endif
 
 FVM_COLON(11, REPEAT, "repeat")
-// : repeat (addr1 addr2 -- ) swap [compile] again resolve> ; immediate
+// : repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
 };
+
+FVM_COLON(12, DO, "do")
+// : do ( high low -- addr1 addr2 ) [compile] (do) mark> <mark ; immediate
+  FVM_OP(COMPILE),
+  FVM_OP(DO),
+  FVM_CALL(FORWARD_MARK),
+  FVM_CALL(BACKWARD_MARK),
+  FVM_OP(EXIT)
+};
+
+FVM_COLON(13, LOOP, "loop")
+// : loop ( addr1 addr2 -- ) [compile] (loop) <resolve resolve> ; immediate
+  FVM_OP(COMPILE),
+  FVM_OP(LOOP),
+  FVM_CALL(BACKWARD_RESOLVE),
+  FVM_CALL(FORWARD_RESOLVE),
+  FVM_OP(EXIT)
+};
+
+FVM_COLON(14, PLUS_LOOP, "+loop")
+// : +loop ( addr1 addr2 -- ) [compile] (+loop) <resolve resolve> ; immediate
+  FVM_OP(COMPILE),
+  FVM_OP(PLUS_LOOP),
+  FVM_CALL(BACKWARD_RESOLVE),
+  FVM_CALL(FORWARD_RESOLVE),
+  FVM_OP(EXIT)
+};
+
+FVM_SYMBOL(15, COMMENT, "(");
+FVM_SYMBOL(16, DOT_QUOTE, ".\"");
+FVM_SYMBOL(17, SEMICOLON, ";");
+FVM_SYMBOL(18, COLON, ":");
+FVM_SYMBOL(19, VARIABLE, "variable");
+FVM_SYMBOL(20, CONSTANT, "constant");
+FVM_SYMBOL(21, COMPILED_WORDS, "compiled-words");
+FVM_SYMBOL(22, GENERATE_CODE, "generate-code");
+FVM_SYMBOL(23, ROOM, "room");
 
 const FVM::code_P FVM::fntab[] PROGMEM = {
   FORWARD_MARK_CODE,
@@ -143,7 +180,10 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
   AGAIN_CODE,
   UNTIL_CODE,
   WHILE_CODE,
-  REPEAT_CODE
+  REPEAT_CODE,
+  DO_CODE,
+  LOOP_CODE,
+  PLUS_LOOP_CODE
 };
 
 const str_P FVM::fnstr[] PROGMEM = {
@@ -159,6 +199,18 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) UNTIL_PSTR,
   (str_P) WHILE_PSTR,
   (str_P) REPEAT_PSTR,
+  (str_P) DO_PSTR,
+  (str_P) LOOP_PSTR,
+  (str_P) PLUS_LOOP_PSTR,
+  (str_P) COMMENT_PSTR,
+  (str_P) DOT_QUOTE_PSTR,
+  (str_P) SEMICOLON_PSTR,
+  (str_P) COLON_PSTR,
+  (str_P) VARIABLE_PSTR,
+  (str_P) CONSTANT_PSTR,
+  (str_P) COMPILED_WORDS_PSTR,
+  (str_P) GENERATE_CODE_PSTR,
+  (str_P) ROOM_PSTR,
   0
 };
 
@@ -182,110 +234,18 @@ void setup()
 void loop()
 {
   char buffer[32];
-  int op;
+  int op, val;
   char c;
 
   // Scan buffer for a single word or number
   c = fvm.scan(buffer, task);
   op = fvm.lookup(buffer);
 
-  // Check for special words or literals
+  // Check for function call or literal value
   if (op < 0) {
-
-    // Check for start of definition
-    if (!strcmp_P(buffer, PSTR(":")) && !compiling) {
-      fvm.scan(buffer, task);
-      fvm.compile((FVM::code_t) 0);
-      fvm.compile(buffer);
-      compiling = true;
-    }
-
-    // Check for variable definition
-    else if (!strcmp_P(buffer, PSTR("variable")) && !compiling) {
-      fvm.scan(buffer, task);
-      fvm.compile((FVM::code_t) 0);
-      fvm.compile(buffer);
-      fvm.compile(FVM::OP_VAR);
-      fvm.compile((FVM::code_t) 0);
-      fvm.compile((FVM::code_t) 0);
-      *latest = fvm.dp() - latest - 1;
-      latest = fvm.dp();
-    }
-
-    // Check for variable definition
-    else if (!strcmp_P(buffer, PSTR("constant")) && !compiling) {
-      int val = task.pop();
-      fvm.scan(buffer, task);
-      fvm.compile((FVM::code_t) 0);
-      fvm.compile(buffer);
-      fvm.compile(FVM::OP_CONST);
-      fvm.compile(val);
-      fvm.compile(val >> 8);
-      *latest = fvm.dp() - latest - 1;
-      latest = fvm.dp();
-    }
-
-    // Check for comment
-    else if (!strcmp_P(buffer, PSTR("("))) {
-      while (Serial.read() != ')') yield();
-    }
-
-    // Check for print string literal
-    else if (!strcmp_P(buffer, PSTR(".\"")) && compiling) {
-      fvm.compile(FVM::OP_DOT_QUOTE);
-      while (1) {
-	while (!Serial.available()) yield();
-	c = Serial.read();
-	if (c == '\"') break;
-	fvm.compile(c);
-      }
-      fvm.compile((FVM::code_t) 0);
-    }
-
-    // Check for room; available memory
-    else if (!strcmp_P(buffer, PSTR("room")) && !compiling) {
-      task.push(DATA_MAX - (fvm.dp() - data));
-    }
-
-    // Check for list compiled words
-    else if (!strcmp_P(buffer, PSTR("compiled-words"))) {
-      words(Serial);
-    }
-
-    // Check for code generation
-    else if (!strcmp_P(buffer, PSTR("generate-code")) && !compiling) {
-      codegen(Serial);
-      fvm.dp(data);
-      latest = data;
-      *latest = 0;
-    }
-
-    // Check for help
-    else if (!strcmp_P(buffer, PSTR("help"))) {
-      Serial.println(F(": NAME BODY ;          - declare function"));
-      Serial.println(F("( COMMENT)             - comment"));
-      Serial.println(F("variable NAME          - create variable"));
-      Serial.println(F("VALUE constant NAME    - create constant"));
-      Serial.println(F("compiled-words         - list compiled words"));
-      Serial.println(F("generate-code          - print source code"));
-      Serial.println(F("room                   - available memory"));
-      Serial.println();
-    }
-
-    // Check for function call (defined word)
-    else if ((op = lookup(buffer)) < 0) {
+    if ((op = lookup(buffer)) < 0 && compiling) {
       fvm.compile(op);
     }
-
-    // Check for end of definition
-    else if (!strcmp_P(buffer, PSTR(";")) && compiling) {
-      fvm.compile(FVM::OP_EXIT);
-      *latest = fvm.dp() - latest - 1;
-      latest = fvm.dp();
-      compiling = false;
-    }
-
-    // Assume number (should check)
     else {
       int value = atoi(buffer);
       if (compiling) {
@@ -305,12 +265,94 @@ void loop()
     }
   }
 
-  // Compile operation
-  else if (op < 128 && compiling) {
-    fvm.compile(op);
+  // Kernal operation
+  else if (op < 128) {
+    if (compiling)
+      fvm.compile(op);
+    else
+      fvm.execute(op, task);
   }
+
+  // Skip comments
+  else if (op == COMMENT) {
+    while (Serial.read() != ')');
+  }
+
+  // Check special forms; Interactive mode
+  else if (!compiling) {
+    switch (op) {
+    case COLON:
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
+      compiling = true;
+      break;
+    case VARIABLE:
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
+      fvm.compile(FVM::OP_VAR);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile((FVM::code_t) 0);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
+      break;
+    case CONSTANT:
+      val = task.pop();
+      fvm.scan(buffer, task);
+      fvm.compile((FVM::code_t) 0);
+      fvm.compile(buffer);
+      fvm.compile(FVM::OP_CONST);
+      fvm.compile(val);
+      fvm.compile(val >> 8);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
+      break;
+    case ROOM:
+      task.push(DATA_MAX - (fvm.dp() - data));
+      break;
+    case COMPILED_WORDS:
+      words(Serial);
+      break;
+    case GENERATE_CODE:
+      codegen(Serial);
+      fvm.dp(data);
+      latest = data;
+      *latest = 0;
+      break;
+    default:
+      Serial.print(buffer);
+      Serial.println(F(" ??"));
+    }
+  }
+
+  // Compilation mode
   else {
-    fvm.execute(op, task);
+    switch (op) {
+    case DOT_QUOTE:
+      fvm.compile(FVM::OP_DOT_QUOTE);
+      while (1) {
+	while (!Serial.available());
+	c = Serial.read();
+	if (c == '\"') break;
+	fvm.compile(c);
+      }
+      fvm.compile((FVM::code_t) 0);
+      break;
+    case SEMICOLON:
+      fvm.compile(FVM::OP_EXIT);
+      *latest = fvm.dp() - latest - 1;
+      latest = fvm.dp();
+      compiling = false;
+      break;
+    default:
+      if (op < SEMICOLON)
+	fvm.execute(op, task);
+      else {
+	Serial.print(buffer);
+	Serial.println(F(" ??"));
+      }
+    }
   }
 
   // Prompt on end of line

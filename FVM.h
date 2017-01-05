@@ -3,7 +3,7 @@
  * @version 1.0
  *
  * @section License
- * Copyright (C) 2016, Mikael Patel
+ * Copyright (C) 2016-2017, Mikael Patel
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -62,6 +62,12 @@ class FVM {
     OP_PARAM,			// Duplicate inline index stack element
     OP_BRANCH,			// Branch always
     OP_ZERO_BRANCH,		// Branch if zero/false
+    OP_DO,			// Start loop block
+    OP_I,			// Current loop index
+    OP_J,			// Outer loop index
+    OP_LEAVE,			// Mark loop block as completed
+    OP_LOOP,			// End loop block (one increment)
+    OP_PLUS_LOOP,		// End loop block (n increment)
     OP_COMPILE,			// Add inline operation/function code
     OP_EXECUTE,			// Execute operation or function
     OP_TRACE,			// Set trace mode
@@ -87,7 +93,6 @@ class FVM {
     OP_TO_R,			// Push data on return stack
     OP_R_FROM,			// Pop data from return stack
     OP_R_FETCH,			// Copy from return stack
-    OP_QUESTION_R,		// Decrement top of return stack
 
     /*
      * Parameter stack
@@ -196,7 +201,8 @@ class FVM {
     OP_U_DOT,			// Print top of stack as unsigned
     OP_DOT,			// Print top of stack
     OP_DOT_S,			// Print contents of parameter stack
-    OP_DOT_QUOTE,		// Print string
+    OP_DOT_QUOTE,		// Print program memory string
+    OP_TYPE,			// Print string
     OP_DOT_NAME,		// Print operation/function name
     OP_QUESTION,		// Print value of variable
 
@@ -218,6 +224,7 @@ class FVM {
      */
     OP_HALT,			// Halt virtual machine
     OP_YIELD,			// Yield virtual machine
+    OP_TRAP,			// Extended instruction
 
     /*
      * Last operation code
@@ -529,5 +536,15 @@ class FVM {
     FVM_OP(FUNC),							\
     fn									\
   }
+
+/**
+ * Create a name table symbol.
+ * @param[in] id identity index.
+ * @param[in] var variable name.
+ * @param[in] name dictionary string.
+ */
+#define FVM_SYMBOL(id,var,name)						\
+  const int var = id + 128;						\
+  const char var ## _PSTR[] PROGMEM = name
 
 #endif
