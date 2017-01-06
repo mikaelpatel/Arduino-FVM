@@ -50,186 +50,186 @@ class FVM {
     /*
      * Control structure and literals
      */
-    OP_EXIT,			// Function return
-    OP_MINUS_EXIT,		// Function return if zero/false
-    OP_LIT,			// Inline literal constant
-    OP_CLIT,		 	// Inline literal signed character constant
-    OP_SLIT,		 	// Push instruction pointer and branch always
-    OP_VAR,			// Handle variable reference
-    OP_CONST,			// Handle constant
-    OP_FUNC,			// Handle function call
-    OP_DOES,			// Handle object pointer
-    OP_PARAM,			// Duplicate inline index stack element
-    OP_BRANCH,			// Branch always
-    OP_ZERO_BRANCH,		// Branch if zero/false
-    OP_DO,			// Start loop block
-    OP_I,			// Current loop index
-    OP_J,			// Outer loop index
-    OP_LEAVE,			// Mark loop block as completed
-    OP_LOOP,			// End loop block (one increment)
-    OP_PLUS_LOOP,		// End loop block (n increment)
-    OP_COMPILE,			// Add inline operation/function code
-    OP_EXECUTE,			// Execute operation or function
-    OP_TRACE,			// Set trace mode
+    OP_EXIT = 0,	 	// Function return
+    OP_MINUS_EXIT = 1,		// Function return if zero/false
+    OP_LIT = 2,			// Inline literal constant
+    OP_CLIT = 3,	 	// Inline literal signed character constant
+    OP_SLIT = 4,	 	// Push instruction pointer and branch always
+    OP_VAR = 5,			// Handle variable reference
+    OP_CONST = 6,		// Handle constant
+    OP_FUNC = 7,		// Handle function call
+    OP_DOES = 8,		// Handle object pointer
+    OP_PARAM = 9,		// Duplicate inline index stack element
+    OP_BRANCH = 10,		// Branch always
+    OP_ZERO_BRANCH = 11,	// Branch if zero/false
+    OP_DO = 12,			// Start loop block
+    OP_I = 13,			// Current loop index
+    OP_J = 14,			// Outer loop index
+    OP_LEAVE = 15,		// Mark loop block as completed
+    OP_LOOP = 16,		// End loop block (one increment)
+    OP_PLUS_LOOP = 17,		// End loop block (n increment)
+    OP_COMPILE = 18,		// Add inline operation/function code
+    OP_TRAP = 19,		// Extended instruction
+    OP_EXECUTE = 20,		// Execute operation or function
+    OP_TRACE = 21,		// Set trace mode
 
     /*
      * Memory access
      */
-    OP_C_FETCH,			// Load character (signed byte)
-    OP_C_STORE,			// Store character
-    OP_FETCH,			// Load data
-    OP_STORE,			// Store data
-    OP_PLUS_STORE,		// Update data
-    OP_DP,			// Data pointer variable
-    OP_HERE,			// Data pointer
-    OP_ALLOT,			// Allocate number of bytes
-    OP_COMMA,			// Allocate and assign from top of stack
-    OP_C_COMMA,			// Allocate and assign character
-    OP_CELLS,			// Convert cells to bytes for allot
+    OP_C_FETCH = 22,		// Load character (signed byte)
+    OP_C_STORE = 23,		// Store character
+    OP_FETCH = 24,		// Load data
+    OP_STORE = 25,		// Store data
+    OP_PLUS_STORE = 26,		// Update data
+    OP_DP = 27,			// Data pointer variable
+    OP_HERE = 28,		// Data pointer
+    OP_ALLOT = 29,		// Allocate number of bytes
+    OP_COMMA = 30,		// Allocate and assign from top of stack
+    OP_C_COMMA = 31,		// Allocate and assign character
+    OP_CELLS = 32,		// Convert cells to bytes for allot
 
     /*
      * Return stack
      */
-    OP_TO_R,			// Push data on return stack
-    OP_R_FROM,			// Pop data from return stack
-    OP_R_FETCH,			// Copy from return stack
+    OP_TO_R = 33,		// Push data on return stack
+    OP_R_FROM = 34,		// Pop data from return stack
+    OP_R_FETCH = 35,		// Copy from return stack
 
     /*
      * Parameter stack
      */
-    OP_SP,			// Stack pointer
-    OP_DEPTH,			// Number of elements
-    OP_DROP,			// Drop top of stack
-    OP_NIP,			// Drop next top of stack
-    OP_EMPTY,			// Empty stack
-    OP_DUP,			// Duplicate top of stack
-    OP_QUESTION_DUP,		// Duplicate top of stack if not zero
-    OP_OVER,			// Duplicate next top of stack
-    OP_TUCK,			// Duplicate top of stack and rotate
-    OP_PICK,			// Duplicate index stack element
-    OP_SWAP,			// Swap two top stack elements
-    OP_ROT,			// Rotate three top stack elements
-    OP_MINUS_ROT,		// Inverse rotate three top stack elements
-    OP_ROLL,			// Rotate given number of stack elements
-    OP_TWO_SWAP,		// Swap two double stack elements
-    OP_TWO_DUP,			// Duplicate double stack elements
-    OP_TWO_OVER,		// Duplicate double next top of stack
-    OP_TWO_DROP,		// Drop double top of stack
+    OP_SP = 36,			// Stack pointer
+    OP_DEPTH = 37,		// Number of elements
+    OP_DROP = 38,		// Drop top of stack
+    OP_NIP = 39,		// Drop next top of stack
+    OP_EMPTY = 40,		// Empty stack
+    OP_DUP = 41,		// Duplicate top of stack
+    OP_QUESTION_DUP = 42,	// Duplicate top of stack if not zero
+    OP_OVER = 43,		// Duplicate next top of stack
+    OP_TUCK = 44,		// Duplicate top of stack and rotate
+    OP_PICK = 45,		// Duplicate index stack element
+    OP_SWAP = 46,		// Swap two top stack elements
+    OP_ROT = 47,		// Rotate three top stack elements
+    OP_MINUS_ROT = 48,		// Inverse rotate three top stack elements
+    OP_ROLL = 49,		// Rotate given number of stack elements
+    OP_TWO_SWAP = 50,		// Swap two double stack elements
+    OP_TWO_DUP = 51,		// Duplicate double stack elements
+    OP_TWO_OVER = 52,		// Duplicate double next top of stack
+    OP_TWO_DROP = 53,		// Drop double top of stack
 
     /*
      * Constants
      */
-    OP_CELL,			// Stack width in bytes
-    OP_MINUS_TWO,		// Push constant(-2)
-    OP_MINUS_ONE,		// Push constant(-1)
-    OP_ZERO,			// Push constant(0)
-    OP_ONE,			// Push constant(1)
-    OP_TWO,			// Push constant(2)
+    OP_CELL = 54,		// Stack width in bytes
+    OP_MINUS_TWO = 55,		// Push constant(-2)
+    OP_MINUS_ONE = 56,		// Push constant(-1)
+    OP_ZERO = 57,		// Push constant(0)
+    OP_ONE = 58,		// Push constant(1)
+    OP_TWO = 59,		// Push constant(2)
 
     /*
      * Bitwise logical operations
      */
-    OP_BOOL,			// Convert top of stack to boolean
-    OP_NOT,			// Convert top of stack to invert boolean
-    OP_TRUE,			// Push true(-1)
-    OP_FALSE,			// Push false(0)
-    OP_INVERT,			// Bitwise inverse top element
-    OP_AND,			// Bitwise AND top two elements
-    OP_OR,			// Bitwise OR top two elements
-    OP_XOR,			// Bitwise XOR top two elements
+    OP_BOOL = 60,		// Convert top of stack to boolean
+    OP_NOT = 61,		// Convert top of stack to invert boolean
+    OP_TRUE = 62,		// Push true(-1)
+    OP_FALSE = 63,		// Push false(0)
+    OP_INVERT = 64,		// Bitwise inverse top element
+    OP_AND = 65,		// Bitwise AND top two elements
+    OP_OR = 66,			// Bitwise OR top two elements
+    OP_XOR = 67,		// Bitwise XOR top two elements
 
     /*
      * Arithmetic operations
      */
-    OP_NEGATE,			// Negate top of stack
-    OP_ONE_PLUS,		// Increment top of stack
-    OP_ONE_MINUS,		// Decrement top of stack
-    OP_TWO_PLUS,		// Increment by two
-    OP_TWO_MINUS,		// Decrement by two
-    OP_TWO_STAR,		// Multiply by two
-    OP_TWO_SLASH,		// Divide by two
-    OP_PLUS,			// Add top two elements
-    OP_MINUS,			// Substract top two elements
-    OP_STAR,			// Multiply top two elements
-    OP_STAR_SLASH,		// Multiply/Divide top three elements
-    OP_SLASH,			// Quotient for division of top two elements
-    OP_MOD,			// Remainder for division of top two elements
-    OP_SLASH_MOD,		// Quotient and remainder
-    OP_LSHIFT,			// Left shift
-    OP_RSHIFT,			// Right shift
+    OP_NEGATE = 68,		// Negate top of stack
+    OP_ONE_PLUS = 69,		// Increment top of stack
+    OP_ONE_MINUS = 70,		// Decrement top of stack
+    OP_TWO_PLUS = 71,		// Increment by two
+    OP_TWO_MINUS = 72,		// Decrement by two
+    OP_TWO_STAR = 73,		// Multiply by two
+    OP_TWO_SLASH = 74,		// Divide by two
+    OP_PLUS = 75,		// Add top two elements
+    OP_MINUS = 76,		// Substract top two elements
+    OP_STAR = 77,		// Multiply top two elements
+    OP_STAR_SLASH = 78,		// Multiply/Divide top three elements
+    OP_SLASH = 79,		// Quotient for division of top two elements
+    OP_MOD = 80,		// Remainder for division of top two elements
+    OP_SLASH_MOD = 81,		// Quotient and remainder
+    OP_LSHIFT = 82,		// Left shift
+    OP_RSHIFT = 83,			// Right shift
 
     /*
      * Math operations
      */
-    OP_WITHIN,			// Within boundard
-    OP_ABS,			// Absolute value
-    OP_MIN,			// Minimum value
-    OP_MAX,			// Maximum value
+    OP_WITHIN = 84,		// Within boundard
+    OP_ABS = 85,		// Absolute value
+    OP_MIN = 86,		// Minimum value
+    OP_MAX = 87,		// Maximum value
 
     /*
      * Relational operations
      */
-    OP_ZERO_NOT_EQUALS,		// Not equal zero
-    OP_ZERO_LESS,		// Less than zero
-    OP_ZERO_EQUALS,		// Equal to zero
-    OP_ZERO_GREATER,		// Greater than zero
-    OP_NOT_EQUALS,		// Not equal
-    OP_LESS,			// Less than
-    OP_EQUALS,			// Equal
-    OP_GREATER,			// Greater than
-    OP_U_LESS,			// Unsigned less than
+    OP_ZERO_NOT_EQUALS = 88,	// Not equal zero
+    OP_ZERO_LESS = 89,		// Less than zero
+    OP_ZERO_EQUALS = 90,	// Equal to zero
+    OP_ZERO_GREATER = 91,	// Greater than zero
+    OP_NOT_EQUALS = 92,		// Not equal
+    OP_LESS = 93,		// Less than
+    OP_EQUALS = 94,		// Equal
+    OP_GREATER = 95,		// Greater than
+    OP_U_LESS = 96,		// Unsigned less than
 
     /*
      * Dictionary functions
      */
-    OP_LOOKUP,			// Lookup word in dictionary
-    OP_TO_BODY,			// Access data area application variable
-    OP_WORDS,			// Print list of operations/functions
+    OP_LOOKUP = 97,		// Lookup word in dictionary
+    OP_TO_BODY = 98,		// Access data area application variable
+    OP_WORDS = 99,		// Print list of operations/functions
 
     /*
      * Basic I/O
      */
-    OP_BASE,			// Base for number conversion
-    OP_HEX,			// Set hexa-decimal number conversion base
-    OP_DECIMAL,			// Set decimal number conversion base
-    OP_QUESTION_KEY,		// Read character if available
-    OP_KEY,			// Wait for character and read
-    OP_EMIT,			// Print character
-    OP_CR,			// Print new-line
-    OP_SPACE,			// Print space
-    OP_SPACES,			// Print spaces
-    OP_U_DOT,			// Print top of stack as unsigned
-    OP_DOT,			// Print top of stack
-    OP_DOT_S,			// Print contents of parameter stack
-    OP_DOT_QUOTE,		// Print program memory string
-    OP_TYPE,			// Print string
-    OP_DOT_NAME,		// Print operation/function name
-    OP_QUESTION,		// Print value of variable
+    OP_BASE = 100,		// Base for number conversion
+    OP_HEX = 101,		// Set hexa-decimal number conversion base
+    OP_DECIMAL = 102,		// Set decimal number conversion base
+    OP_QUESTION_KEY = 103,	// Read character if available
+    OP_KEY = 104,		// Wait for character and read
+    OP_EMIT = 105,		// Print character
+    OP_CR = 106,		// Print new-line
+    OP_SPACE = 107,		// Print space
+    OP_SPACES = 108,		// Print spaces
+    OP_U_DOT = 109,		// Print top of stack as unsigned
+    OP_DOT = 110,		// Print top of stack
+    OP_DOT_S = 111,		// Print contents of parameter stack
+    OP_DOT_QUOTE = 112,		// Print program memory string
+    OP_TYPE = 113,		// Print string
+    OP_DOT_NAME = 114,		// Print operation/function name
+    OP_QUESTION = 115,		// Print value of variable
 
     /*
      * Arduino extensions
      */
-    OP_MICROS,			// Micro-seconds
-    OP_MILLIS,			// Milli-seconds
-    OP_DELAY,			// Delay milli-seconds (yield)
-    OP_PINMODE,			// Digital pin mode
-    OP_DIGITALREAD,		// Read digital pin
-    OP_DIGITALWRITE,		// Write digital pin
-    OP_DIGITALTOGGLE,		// Toggle digital pin
-    OP_ANALOGREAD,		// Read analog pin
-    OP_ANALOGWRITE,		// Write pwm pin
+    OP_MICROS = 116,		// Micro-seconds
+    OP_MILLIS = 117,		// Milli-seconds
+    OP_DELAY = 118,		// Delay milli-seconds (yield)
+    OP_PINMODE = 119,		// Digital pin mode
+    OP_DIGITALREAD = 120,	// Read digital pin
+    OP_DIGITALWRITE = 121,	// Write digital pin
+    OP_DIGITALTOGGLE = 122,	// Toggle digital pin
+    OP_ANALOGREAD = 123,	// Read analog pin
+    OP_ANALOGWRITE = 124,	// Write pwm pin
 
     /*
      * High-level control
      */
-    OP_HALT,			// Halt virtual machine
-    OP_YIELD,			// Yield virtual machine
-    OP_TRAP,			// Extended instruction
+    OP_HALT = 125,		// Halt virtual machine
+    OP_YIELD = 126,		// Yield virtual machine
 
     /*
      * Last operation code
      */
-    OP_NOP			// No-operation
+    OP_NOP = 127		// No-operation
   } __attribute__((packed));
 
   typedef int16_t data_t;

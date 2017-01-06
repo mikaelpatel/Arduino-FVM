@@ -24,17 +24,24 @@
  * Classical blink sketch using the Forth Virtual Machine (FVM).
  *
  * @section Analysis
+ * ------------------------------------------------
+ * Enironment: Arduino Uno/IDE 1.8.0
+ * ------------------------------------------------
  * Bytes      Section
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +88   1962 +Blink sketch code and task
- *  +3750 5712 +Forth Virtual Machine
- *  +892  6604 +Kernel dictionary (128 words)
- *  +986  7590 +Trace mode
- *  +24   7614 +Code generated sketch
+ *  +3742 5704 +Forth Virtual Machine
+ *  +894  6598 +Kernel dictionary (128 words)
+ *  +1000 7598 +Trace mode
+ *  +24   7622 +Code generated sketch
  * ------------------------------------------------
- * Arduino Uno/IDE 1.8.0
+ * Cycle time: 32-36 us
+ * Context switch to FVM, delay check and context
+ * switch back to C++/Arduino. The delay check is:
+ *   millis r@ - over u< (0branch) yield
+ * ------------------------------------------------
  */
 
 #define MEASURE
@@ -56,6 +63,7 @@
 13 constant LED
 : blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
 : sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
+generate-code
 ----------------------------------------------------------------------
 */
 
@@ -69,11 +77,11 @@ const FVM::const_t WORD1_CONST[] PROGMEM = {
 };
 const char WORD2_PSTR[] PROGMEM = "blink";
 const FVM::code_t WORD2_CODE[] PROGMEM = {
-  40, 121, 42, 117, 10, -5, 0
+  41, 122, 43, 118, 10, -5, 0
 };
 const char WORD3_PSTR[] PROGMEM = "sketch";
 const FVM::code_t WORD3_CODE[] PROGMEM = {
-  -1, -2, 118, 2, -12, 1, -2, -3, 124, 0
+  -1, -2, 119, 2, -12, 1, -2, -3, 125, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &WORD0_CONST,

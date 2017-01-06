@@ -249,7 +249,7 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // (do) ( high low -- rp: high low )
-  // Start loop block with index [low..high].
+  // Start loop block with index [low..high]
   OP(DO)
     tmp = *sp--;
     if (tos != tmp) {
@@ -265,7 +265,7 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // j ( -- index )
-  // Outer loop index.
+  // Outer loop index
   OP(J)
     *++sp = tos;
     tos = (data_t) *(rp - 2);
@@ -280,8 +280,8 @@ int FVM::resume(task_t& task)
   // (loop) ( -- )
   // End loop block (increment index by one)
   OP(LOOP)
-    if (*rp != *(rp - 1)) {
-      *rp += 1;
+    *rp += 1;
+    if (*rp < *(rp - 1)) {
       ir = (int8_t) FETCH(ip);
       ip += ir;
     }
@@ -311,6 +311,12 @@ int FVM::resume(task_t& task)
   OP(COMPILE)
     *m_dp++ = (int8_t) FETCH(ip++);
   NEXT();
+
+  // (trap) ( -- )
+  // Extended operation/function call
+  OP(TRAP)
+    ir = FETCH(ip++);
+  goto DISPATCH;
 
   // execute ( n -- )
   // Execute primitive or function (as returned by lookup)
@@ -1635,6 +1641,7 @@ static const char LEAVE_PSTR[] PROGMEM = "leave";
 static const char LOOP_PSTR[] PROGMEM = "(loop)";
 static const char PLUS_LOOP_PSTR[] PROGMEM = "(+loop)";
 static const char COMPILE_PSTR[] PROGMEM = "(compile)";
+static const char TRAP_PSTR[] PROGMEM = "(trap)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
 static const char TRACE_PSTR[] PROGMEM = "trace";
 static const char C_FETCH_PSTR[] PROGMEM = "c@";
@@ -1742,7 +1749,6 @@ static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
 static const char HALT_PSTR[] PROGMEM = "halt";
 static const char YIELD_PSTR[] PROGMEM = "yield";
-static const char TRAP_PSTR[] PROGMEM = "trap";
 static const char NOP_PSTR[] PROGMEM = "nop";
 #endif
 
@@ -1767,6 +1773,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LOOP_PSTR,
   (str_P) PLUS_LOOP_PSTR,
   (str_P) COMPILE_PSTR,
+  (str_P) TRAP_PSTR,
   (str_P) EXECUTE_PSTR,
   (str_P) TRACE_PSTR,
   (str_P) C_FETCH_PSTR,
@@ -1874,7 +1881,6 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ANALOGWRITE_PSTR,
   (str_P) HALT_PSTR,
   (str_P) YIELD_PSTR,
-  (str_P) TRAP_PSTR,
   (str_P) NOP_PSTR,
 #endif
   0
