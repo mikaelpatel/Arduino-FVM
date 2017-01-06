@@ -7,7 +7,9 @@ shell or even full scale Forth applications.
 ![shell-screenshot](https://dl.dropboxusercontent.com/u/993383/Cosa/screenshots/Screenshot%20from%202016-12-30%2020-40-06.png)
 
 The Forth Virtual Machine allows multi-tasking which makes it easy to
-integrate with the Arduino core library functions.
+integrate with the Arduino core library functions. Context switch to
+and from the virtual machine is as low as 6.4 us (halt) and 9.3 us
+(yield/branch).
 
 ![compiler-screenshot](https://dl.dropboxusercontent.com/u/993383/Cosa/screenshots/Screenshot%20from%202017-01-01%2016-54-07.png)
 
