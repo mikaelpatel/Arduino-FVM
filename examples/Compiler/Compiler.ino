@@ -31,16 +31,16 @@
 // Dictionary entry prefix (C++)
 #define PREFIX "WORD"
 
-FVM_COLON(0, FORWARD_MARK, "mark>")
 // : mark> ( -- addr ) here 0 c, ;
+FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(HERE),
   FVM_OP(ZERO),
   FVM_OP(C_COMMA),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
 // : resolve> ( addr -- ) here over - swap c! ;
+FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(HERE),
   FVM_OP(OVER),
   FVM_OP(MINUS),
@@ -49,36 +49,36 @@ FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(EXIT)
 };
 
-FVM_COLON(2, BACKWARD_MARK, "<mark")
 // : <mark ( -- addr ) here ;
+FVM_COLON(2, BACKWARD_MARK, "<mark")
   FVM_OP(HERE),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
 // : <resolve ( addr -- ) here - c, ;
+FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
   FVM_OP(HERE),
   FVM_OP(MINUS),
   FVM_OP(C_COMMA),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(4, IF, "if")
 // : if ( -- addr ) compile (0branch) mark> ; immediate
+FVM_COLON(4, IF, "if")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(FORWARD_MARK),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(5, THEN, "then")
 // : then ( addr -- ) resolve> ; immediate
+FVM_COLON(5, THEN, "then")
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(6, ELSE, "else")
 // : else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
+FVM_COLON(6, ELSE, "else")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
   FVM_CALL(FORWARD_MARK),
@@ -87,22 +87,22 @@ FVM_COLON(6, ELSE, "else")
   FVM_OP(EXIT)
 };
 
-FVM_COLON(7, BEGIN, "begin")
 // : begin ( -- addr ) <mark ; immediate
+FVM_COLON(7, BEGIN, "begin")
   FVM_CALL(BACKWARD_MARK),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(8, AGAIN, "again")
 // : again ( addr -- ) compile (branch) <resolve ; immediate
+FVM_COLON(8, AGAIN, "again")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
   FVM_CALL(BACKWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(9, UNTIL, "until")
 // : until ( addr -- ) compile (0branch) <resolve ; immediate
+FVM_COLON(9, UNTIL, "until")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(BACKWARD_RESOLVE),
@@ -110,29 +110,30 @@ FVM_COLON(9, UNTIL, "until")
 };
 
 #if 0
-FVM_COLON(10, WHILE, "while")
 // : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
+FVM_COLON(10, WHILE, "while")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
   FVM_CALL(FORWARD_MARK),
   FVM_OP(EXIT)
 };
 #else
+// : while ( addr1 -- addr1 addr2 ) [compile] if ; immediate
 const int WHILE = 10;
 const char WHILE_PSTR[] PROGMEM = "while";
 # define WHILE_CODE IF_CODE
 #endif
 
-FVM_COLON(11, REPEAT, "repeat")
 // : repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
+FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
 };
 
-FVM_COLON(12, DO, "do")
 // : do ( high low -- addr1 addr2 ) [compile] (do) mark> <mark ; immediate
+FVM_COLON(12, DO, "do")
   FVM_OP(COMPILE),
   FVM_OP(DO),
   FVM_CALL(FORWARD_MARK),
@@ -140,8 +141,8 @@ FVM_COLON(12, DO, "do")
   FVM_OP(EXIT)
 };
 
-FVM_COLON(13, LOOP, "loop")
 // : loop ( addr1 addr2 -- ) [compile] (loop) <resolve resolve> ; immediate
+FVM_COLON(13, LOOP, "loop")
   FVM_OP(COMPILE),
   FVM_OP(LOOP),
   FVM_CALL(BACKWARD_RESOLVE),
@@ -149,8 +150,8 @@ FVM_COLON(13, LOOP, "loop")
   FVM_OP(EXIT)
 };
 
-FVM_COLON(14, PLUS_LOOP, "+loop")
 // : +loop ( addr1 addr2 -- ) [compile] (+loop) <resolve resolve> ; immediate
+FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(COMPILE),
   FVM_OP(PLUS_LOOP),
   FVM_CALL(BACKWARD_RESOLVE),
@@ -237,11 +238,11 @@ void loop()
   int op, val;
   char c;
 
-  // Scan buffer for a single word or number
+  // Scan and lookup word
   c = fvm.scan(buffer, task);
   op = fvm.lookup(buffer);
 
-  // Check for function call or literal value
+  // Check for function call or literal value (word not found)
   if (op < 0) {
     if ((op = lookup(buffer)) < 0 && compiling) {
       fvm.compile(op);
@@ -265,7 +266,7 @@ void loop()
     }
   }
 
-  // Kernal operation
+  // Check for core words
   else if (op < 128) {
     if (compiling)
       fvm.compile(op);
@@ -326,7 +327,7 @@ void loop()
     }
   }
 
-  // Compilation mode
+  // Compile mode
   else {
     switch (op) {
     case DOT_QUOTE:

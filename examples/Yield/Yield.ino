@@ -33,14 +33,15 @@
 
 #include "FVM.h"
 
-FVM_COLON(0, SKETCH, "sketch")
 #if 0
 // : sketch ( -- ) halt ;
+FVM_COLON(0, SKETCH, "sketch")
   FVM_OP(HALT),
   FVM_OP(EXIT)
 };
 #else
 // : sketch ( -- ) begin yield again ;
+FVM_COLON(0, SKETCH, "sketch")
   FVM_OP(YIELD),
   FVM_OP(BRANCH), -2,
   FVM_OP(EXIT)

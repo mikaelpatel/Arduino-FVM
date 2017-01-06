@@ -25,22 +25,22 @@
  *
  * @section Analysis
  * ------------------------------------------------
- * Enironment: Arduino Uno/IDE 1.8.0
+ * Environment: Arduino Uno/IDE 1.8.0
  * ------------------------------------------------
  * Bytes      Section
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
- *  +88   1962 +Blink sketch code and task
- *  +3742 5704 +Forth Virtual Machine
- *  +894  6598 +Kernel dictionary (128 words)
- *  +1000 7598 +Trace mode
- *  +24   7622 +Code generated sketch
+ *  +86   1960 +Blink sketch code and task
+ *  +3766 5726 +Forth Virtual Machine
+ *  +896  6622 +Kernel dictionary (128 words)
+ *  +998  7620 +Trace mode
+ *  +2    7622 +Code generated sketch
  * ------------------------------------------------
  * Cycle time: 32-36 us
  * Context switch to FVM, delay check and context
  * switch back to C++/Arduino. The delay check is:
- *   millis r@ - over u< (0branch) yield
+ *   millis r@ - over u< (0branch) yield (branch)
  * ------------------------------------------------
  */
 
@@ -101,8 +101,14 @@ FVM::task_t task(Serial, WORD3_CODE);
 
 #else
 
-FVM_COLON(0, BLINK, "blink")
+// 1 constant OUTPUT
+FVM_CONSTANT(0, OUTPUT_MODE, "OUTPUT", 1);
+
+// 13 constant LED
+FVM_CONSTANT(1, LED_PIN, "LED", 13);
+
 // : blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
+FVM_COLON(2, BLINK, "blink")
     FVM_OP(DUP),
     FVM_OP(DIGITALTOGGLE),
     FVM_OP(OVER),
@@ -111,25 +117,29 @@ FVM_COLON(0, BLINK, "blink")
   FVM_OP(EXIT)
 };
 
-FVM_COLON(1, SKETCH, "sketch")
-// : sketch ( -- ) 1 13 pinmode 500 13 blink halt ;
-  FVM_OP(ONE),
-  FVM_CLIT(13),
+// : sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
+FVM_COLON(3, SKETCH, "sketch")
+  FVM_CALL(OUTPUT_MODE),
+  FVM_CALL(LED_PIN),
   FVM_OP(PINMODE),
   FVM_LIT(500),
-  FVM_CLIT(13),
+  FVM_CALL(LED_PIN),
   FVM_CALL(BLINK),
   FVM_OP(HALT)
 };
 
 // Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
+  (code_P) &OUTPUT_MODE_CONST,
+  (code_P) &LED_PIN_CONST,
   BLINK_CODE,
   SKETCH_CODE
 };
 
 // Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
+  (str_P) OUTPUT_MODE_PSTR,
+  (str_P) LED_PIN_PSTR,
   (str_P) BLINK_PSTR,
   (str_P) SKETCH_PSTR,
   0

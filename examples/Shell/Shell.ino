@@ -27,9 +27,8 @@
 
 #include "FVM.h"
 
-// Array handler function (does code)
-FVM_COLON(0, ARRAY, "(array)")
 // does> ( index array-addr -- element-addr ) swap cells + ;
+FVM_COLON(0, ARRAY, "(array)")
   FVM_OP(DOES),
   FVM_OP(SWAP),
   FVM_OP(CELLS),
@@ -37,9 +36,8 @@ FVM_COLON(0, ARRAY, "(array)")
   FVM_OP(EXIT)
 };
 
-// Double constant handler function (does code)
-FVM_COLON(1, TWO_CONST, "(2const)")
 // does> ( addr -- x y ) dup @ swap cell + @ ;
+FVM_COLON(1, TWO_CONST, "(2const)")
   FVM_OP(DOES),
   FVM_OP(DUP),
   FVM_OP(FETCH),
@@ -50,22 +48,22 @@ FVM_COLON(1, TWO_CONST, "(2const)")
   FVM_OP(EXIT)
 };
 
-// Declare a variable (sketch data reference)
+// variable x 42 x !
 int x = 42;
 FVM_VARIABLE(2, X, x);
 
-// Declare a constant (16-bit value)
+// -42 constant y
 FVM_CONSTANT(3, Y, "y", -42);
 
-// Declare an array with handler function
+// create z 1 , 2 , 4 , 8 , does: (array)
 int z[] = { 1, 2, 4, 8 };
 FVM_CREATE(4, Z, ARRAY, z);
 
-// Declare double constant with handler function
+// create c2 1 , 2 , does: (2const)
 int c2[] = { 1, 2 };
 FVM_CREATE(5, C2, TWO_CONST, c2);
 
-// Pad area for scanned word
+// create pad 32 cells allot
 const int PAD_MAX = 32;
 char pad[PAD_MAX];
 FVM_VARIABLE(6, PAD, pad);
