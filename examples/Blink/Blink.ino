@@ -24,9 +24,6 @@
  * Classical blink sketch using the Forth Virtual Machine (FVM).
  *
  * @section Analysis
- * ------------------------------------------------
- * Environment: Arduino Uno/IDE 1.8.0
- * ------------------------------------------------
  * Bytes      Section
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
@@ -36,12 +33,15 @@
  *  +896  6622 +Kernel dictionary (128 words)
  *  +998  7620 +Trace mode
  *  +2    7622 +Code generated sketch
- * ------------------------------------------------
+ *
  * Cycle time: 32-36 us
+ *
  * Context switch to FVM, delay check and context
  * switch back to C++/Arduino. The delay check is:
- *   millis r@ - over u< (0branch) yield (branch)
- * ------------------------------------------------
+ * millis r@ - over u< (0branch) yield (branch)
+ *
+ * @section Environment
+ * Arduino Uno/IDE 1.8.0
  */
 
 #define MEASURE

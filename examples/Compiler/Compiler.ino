@@ -24,6 +24,11 @@
  * Basic interactive compiler for the Forth Virtual Machine (FVM).
  * Compiles forth definitions, statements and generates virtual
  * machine code (C++).
+ *
+ * @section Words
+ * compiled-words ( -- ) print list of compiled words
+ * generate-code ( -- ) print source code for compiled words
+ * room ( -- bytes ) number bytes left in data area.
  */
 
 #include "FVM.h"

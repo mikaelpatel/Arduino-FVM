@@ -427,6 +427,13 @@ class FVM {
    */
   int execute(const char* name, task_t& task);
 
+  /**
+   * Interpret; scan, lookup and execute.
+   * @param[in] task to run.
+   * @return error code.
+   */
+  int interpret(task_t& task);
+
   // Function code and dictionary provided by sketch
   static const code_P fntab[] PROGMEM;
   static const str_P fnstr[] PROGMEM;

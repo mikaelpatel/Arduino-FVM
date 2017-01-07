@@ -1614,11 +1614,29 @@ int FVM::execute(code_t op, task_t& task)
 int FVM::execute(const char* name, task_t& task)
 {
   int op = lookup(name);
-  if (op == -1) {
-    task.push(atoi(name));
-    op = OP_NOP;
-  }
+  if (op == -1) return (-1);
   return (execute(op, task));
+}
+
+int FVM::interpret(task_t& task)
+{
+  char buffer[32];
+  char c = scan(buffer, task);
+  int res = execute(buffer, task);
+  if (res == -1) {
+    char* endptr;
+    int value = strtol(buffer, &endptr, task.m_base);
+    if (*endptr != 0) {
+      task.m_ios.print(buffer);
+      task.m_ios.println(F(" ??"));
+      return (-1);
+    }
+    task.push(value);
+    execute(OP_NOP, task);
+  }
+  if (c == '\n' && !task.trace())
+    execute(FVM::OP_DOT_S, task);
+  return (c);
 }
 
 #if defined(FVM_DICT)

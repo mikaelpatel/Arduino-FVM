@@ -119,20 +119,5 @@ void setup()
 
 void loop()
 {
-  // Scan buffer for a single word or number
-  char buffer[32];
-  char c = fvm.scan(buffer, task);
-
-  // Check for quote of operation/function name
-  if (buffer[0] == '\\') {
-    strcpy(pad, buffer+1);
-    task.push((int) pad);
-  }
-  // Lookup and execute
-  else
-    fvm.execute(buffer, task);
-
-  // Print stack contents after each command line
-  if (c == '\n' && !task.trace())
-    fvm.execute(FVM::OP_DOT_S, task);
+  fvm.interpret(task);
 }

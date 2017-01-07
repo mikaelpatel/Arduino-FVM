@@ -104,9 +104,5 @@ void setup()
 
 void loop()
 {
-  char buffer[32];
-  char c = fvm.scan(buffer, task);
-  fvm.execute(buffer, task);
-  if (c == '\n' && !task.trace())
-    fvm.execute(FVM::OP_DOT_S, task);
+  fvm.interpret(task);
 }

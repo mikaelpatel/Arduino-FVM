@@ -28,7 +28,8 @@
  * Yield/branch: 9.3 us (27.5 us with trace)
  * Halt: 6.4 us (17.2 us with trace).
  *
- * Environment: Arduino Uno/IDE 1.8.0
+ * @section Environment
+ * Arduino Uno/IDE 1.8.0
  */
 
 #include "FVM.h"
