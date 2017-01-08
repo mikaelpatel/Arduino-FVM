@@ -27,19 +27,6 @@
 #include <Arduino.h>
 
 /**
- * Enable symbolic trace of virtual machine instruction cycle. Print
- * execute time, instruction pointer, operation code and stack
- * contents.
- */
-#define FVM_TRACE
-
-/**
- * Enable kernel dictionary. Remove to reduce foot-print for
- * non-interactive application.
- */
-#define FVM_DICT
-
-/**
  * String in program memory.
  */
 typedef const PROGMEM char* str_P;
@@ -229,7 +216,8 @@ class FVM {
     /*
      * Last operation code
      */
-    OP_NOP = 127		// No-operation
+    OP_NOP = 127,		// No-operation
+    KERNEL_MAX = 128
   } __attribute__((packed));
 
   typedef int16_t data_t;

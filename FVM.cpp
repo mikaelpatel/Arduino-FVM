@@ -23,6 +23,19 @@
 
 #include "FVM.h"
 
+/**
+ * Enable symbolic trace of virtual machine instruction cycle. Print
+ * execute time, instruction pointer, operation code and stack
+ * contents.
+ */
+#define FVM_TRACE
+
+/**
+ * Enable kernel dictionary. Remove to reduce foot-print for
+ * non-interactive application.
+ */
+#define FVM_DICT
+
 // Forth Virtual Machine support macros
 #define NEXT() goto INNER
 #define OP(n) case OP_ ## n:
@@ -36,13 +49,13 @@ int FVM::lookup(const char* name)
 {
   const char* s;
 
+  // Search sketch dictionary, return index
+  for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
+    if (!strcmp_P(name, s)) return (i + FVM::KERNEL_MAX);
+
   // Search kernel dictionary, return index
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
-
-  // Search sketch dictionary, return adjusted index
-  for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
-    if (!strcmp_P(name, s)) return (i+128);
 
   // Return error code
   return (-1);
@@ -321,14 +334,14 @@ int FVM::resume(task_t& task)
   // execute ( n -- )
   // Execute primitive or function (as returned by lookup)
   OP(EXECUTE)
-    if (tos < 128) {
+    if (tos < KERNEL_MAX) {
       ir = tos;
       tos = *sp--;
       goto DISPATCH;
     }
     else {
       *++rp = ip;
-      ip = (code_P) pgm_read_word(fntab+(tos-128));
+      ip = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
       tos = *sp--;
     }
   NEXT();
@@ -1166,7 +1179,7 @@ int FVM::resume(task_t& task)
   // >body ( n -- addr )
   // Access data area for given token (must be greater than 127).
   OP(TO_BODY)
-    tp = (code_P) pgm_read_word(fntab+(tos-128));
+    tp = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
     tos = (data_t) WFETCH(tp+1);
   NEXT();
 
@@ -1464,10 +1477,10 @@ int FVM::resume(task_t& task)
   OP(DOT_NAME)
   {
     const __FlashStringHelper* s = NULL;
-    if (tos < 128)
+    if (tos < KERNEL_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
     else if (tos < 255)
-      s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-128]);
+      s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-KERNEL_MAX]);
     tos = (s != NULL) ? ios.print(s) : 0;
   }
   NEXT();
