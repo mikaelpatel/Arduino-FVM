@@ -24,7 +24,7 @@
  * Classical blink sketch using the Forth Virtual Machine (FVM).
  *
  * @section Analysis
- * Bytes      Section
+ *  Bytes      Section
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
