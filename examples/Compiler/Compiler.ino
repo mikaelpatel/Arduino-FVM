@@ -26,14 +26,34 @@
  * machine code (C++).
  *
  * @section Words
+ *
  * compiled-words ( -- ) print list of compiled words
  * generate-code ( -- ) print source code for compiled words
  * room ( -- bytes ) number bytes left in data area.
+ *
+ * if ( -- addr ) start conditional block.
+ * else ( addr1 -- addr ) end conditional block and start alternative.
+ * then ( addr -- ) end conditional block.
+ *
+ * begin ( -- addr ) start iteration block.
+ * again ( addr -- ) end infinite iteration block.
+ * until ( addr -- ) end conditional iteration block.
+ * while ( addr1 -- addr1 addr2 ) start conditional iteration block.
+ * repeat ( addr1 addr2 -- ) end conditional iteration block.
+ *
+ * do ( -- addr ) start counting iteration block.
+ * loop ( addr -- ) end counting iteration block.
+ * +loop ( addr -- ) counting iteration block.
+ *
+ * mark> ( -- addr ) mark forward branch.
+ * resolve> ( addr -- ) resolve forward branch.
+ * <mark> ( -- addr ) mark backward branch.
+ * <resolve> ( addr -- ) resolve backward branch.
  */
 
 #include "FVM.h"
 
-// Dictionary entry prefix (C++)
+// Code generation dictionary word prefix (C++)
 #define PREFIX "WORD"
 
 // : mark> ( -- addr ) here 0 c, ;
@@ -137,7 +157,7 @@ FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(EXIT)
 };
 
-// : do ( high low -- addr1 addr2 ) [compile] (do) mark> <mark ; immediate
+// : do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
 FVM_COLON(12, DO, "do")
   FVM_OP(COMPILE),
   FVM_OP(DO),
@@ -146,7 +166,7 @@ FVM_COLON(12, DO, "do")
   FVM_OP(EXIT)
 };
 
-// : loop ( addr1 addr2 -- ) [compile] (loop) <resolve resolve> ; immediate
+// : loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
 FVM_COLON(13, LOOP, "loop")
   FVM_OP(COMPILE),
   FVM_OP(LOOP),
@@ -155,7 +175,7 @@ FVM_COLON(13, LOOP, "loop")
   FVM_OP(EXIT)
 };
 
-// : +loop ( addr1 addr2 -- ) [compile] (+loop) <resolve resolve> ; immediate
+// : +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
 FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(COMPILE),
   FVM_OP(PLUS_LOOP),
@@ -253,9 +273,16 @@ void loop()
       fvm.compile(op);
     }
     else {
-      int value = atoi(buffer);
+      char* endptr;
+      int value = strtol(buffer, &endptr, task.m_base);
+      if (*endptr != 0) {
+	Serial.print(buffer);
+	Serial.println(F(" ??"));
+	fvm.dp(latest);
+	compiling = false;
+      }
       if (compiling) {
-	if (value < -128 || value > 127) {
+	if (value < INT8_MIN || value > INT8_MAX) {
 	  fvm.compile(FVM::OP_LIT);
 	  fvm.compile(value);
 	  fvm.compile(value >> 8);
@@ -271,8 +298,8 @@ void loop()
     }
   }
 
-  // Check for core words
-  else if (op < 128) {
+  // Check for kernel words
+  else if (op < FVM::KERNEL_MAX) {
     if (compiling)
       fvm.compile(op);
     else
@@ -300,7 +327,7 @@ void loop()
       fvm.compile(FVM::OP_VAR);
       fvm.compile((FVM::code_t) 0);
       fvm.compile((FVM::code_t) 0);
-      *latest = fvm.dp() - latest - 1;
+      *latest = fvm.dp() - latest;
       latest = fvm.dp();
       break;
     case CONSTANT:
@@ -311,7 +338,7 @@ void loop()
       fvm.compile(FVM::OP_CONST);
       fvm.compile(val);
       fvm.compile(val >> 8);
-      *latest = fvm.dp() - latest - 1;
+      *latest = fvm.dp() - latest;
       latest = fvm.dp();
       break;
     case ROOM:
@@ -347,7 +374,7 @@ void loop()
       break;
     case SEMICOLON:
       fvm.compile(FVM::OP_EXIT);
-      *latest = fvm.dp() - latest - 1;
+      *latest = fvm.dp() - latest;
       latest = fvm.dp();
       compiling = false;
       break;
@@ -369,12 +396,13 @@ int lookup(const char* s)
 {
   int op = -1;
   uint8_t* dp = data;
-  while (dp < fvm.dp()) {
+  while (1) {
     if (!strcmp(s, (const char*) dp + 1)) return (op);
-    dp += ((uint8_t) *dp) + 1;
+    uint8_t offset = *dp;
+    if (offset == 0) return (0);
+    dp += offset;
     op -= 1;
   }
-  return (0);
 }
 
 void words(Stream& ios)
@@ -389,7 +417,7 @@ void words(Stream& ios)
     ios.print(*dp);
     ios.print(':');
     ios.println((const char*) dp + 1);
-    dp += ((uint8_t) *dp) + 1;
+    dp += (uint8_t) *dp;
   }
 }
 
@@ -404,7 +432,7 @@ void codegen(Stream& ios)
   dp = data;
   nr = 0;
   while (dp < fvm.dp()) {
-    uint8_t length = *dp++;
+    uint8_t length = *dp++ - 1;
     ios.print(F("const char " PREFIX));
     ios.print(nr);
     ios.print(F("_PSTR[] PROGMEM = \""));
@@ -457,9 +485,9 @@ void codegen(Stream& ios)
   dp = data;
   ios.println(F("const FVM::code_P FVM::fntab[] PROGMEM = {"));
   while (dp < fvm.dp()) {
-    uint8_t length = *dp++;
-    name = (char*) dp;
-    uint8_t n = strlen(name) + 1;
+    uint8_t length = *dp;
+    name = (char*) dp + 1;
+    uint8_t n = strlen(name) + 2;
     switch (dp[n]) {
     case FVM::OP_VAR:
       ios.print(F("  (code_P) &" PREFIX));
@@ -486,7 +514,7 @@ void codegen(Stream& ios)
   dp = data;
   ios.println(F("const str_P FVM::fnstr[] PROGMEM = {"));
   while (dp < fvm.dp()) {
-    uint8_t length = *dp++;
+    uint8_t length = *dp;
     ios.print(F("  (str_P) " PREFIX));
     ios.print(nr++);
     ios.println(F("_PSTR,"));
