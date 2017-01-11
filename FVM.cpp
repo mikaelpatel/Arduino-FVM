@@ -121,8 +121,14 @@ int FVM::resume(task_t& task)
   do {
     if (task.m_trace) {
 #if (FVM_TRACE == 2)
+      uint32_t stop = micros();
+#endif
+      ios.print(F("task@"));
+      ios.print((uint16_t) &task);
+      ios.print(':');
+#if (FVM_TRACE == 2)
       // Print measurement of latest operation; micro-seconds
-      ios.print(micros() - start);
+      ios.print(stop - start);
       ios.print(':');
       // Print current instruction pointer
       ios.print((uint16_t) ip);
@@ -154,7 +160,7 @@ int FVM::resume(task_t& task)
       if (ir != OP_TAIL)
 	ios.print(OPSTR(ir));
       else
-	ios.print(FNSTR(FETCH(ip)));
+	ios.print(F("tail "));
 #else
       ios.print(ir);
 #endif
@@ -233,7 +239,12 @@ DISPATCH:
   {
     fn_t fn = (fn_t) WFETCH(ip);
     *++sp = tos;
-    sp = fn(sp);
+    task.m_sp = sp;
+    task.m_ip = ip;
+    task.m_rp = rp;
+    fn(task);
+    rp = task.m_rp;
+    sp = task.m_sp;
     tos = *sp--;
     ip = *rp--;
   }
@@ -1653,14 +1664,14 @@ int FVM::interpret(task_t& task)
     if (*endptr != 0) {
       task.m_ios.print(buffer);
       task.m_ios.println(F(" ??"));
-      return (-1);
+      return (res);
     }
     task.push(value);
-    execute(OP_NOOP, task);
+    res = execute(OP_NOOP, task);
   }
   if (c == '\n' && !task.trace())
     execute(FVM::OP_DOT_S, task);
-  return (c);
+  return (res);
 }
 
 #if defined(FVM_DICT)

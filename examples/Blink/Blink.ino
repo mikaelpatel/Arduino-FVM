@@ -45,7 +45,7 @@
 
 #define MEASURE
 #define BLINK_SKETCH
-#define BLINK_TRACE
+// #define BLINK_TRACE
 #define BLINK_RUN
 #define CODE_GENERATED
 
@@ -100,13 +100,19 @@ FVM::Task<32,16> task(Serial, WORD3_CODE);
 
 #else
 
-// 1 constant OUTPUT
+/* Manually translated to C++ source code using FVM macro set:
+----------------------------------------------------------------------
+1 constant OUTPUT
+13 constant LED
+: blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
+: sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
+----------------------------------------------------------------------
+*/
+
 FVM_CONSTANT(0, OUTPUT_MODE, "OUTPUT", 1);
 
-// 13 constant LED
 FVM_CONSTANT(1, LED_PIN, "LED", 13);
 
-// : blink ( ms pin -- ) begin dup digitaltoggle over delay again ;
 FVM_COLON(2, BLINK, "blink")
     FVM_OP(DUP),
     FVM_OP(DIGITALTOGGLE),
@@ -116,7 +122,6 @@ FVM_COLON(2, BLINK, "blink")
   FVM_OP(EXIT)
 };
 
-// : sketch ( -- ) OUTPUT LED pinmode 500 LED blink halt ;
 FVM_COLON(3, SKETCH, "sketch")
   FVM_CALL(OUTPUT_MODE),
   FVM_CALL(LED_PIN),
@@ -127,7 +132,6 @@ FVM_COLON(3, SKETCH, "sketch")
   FVM_OP(HALT)
 };
 
-// Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &OUTPUT_MODE_CONST,
   (code_P) &LED_PIN_CONST,
@@ -135,7 +139,6 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
   SKETCH_CODE
 };
 
-// Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) OUTPUT_MODE_PSTR,
   (str_P) LED_PIN_PSTR,
@@ -143,6 +146,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) SKETCH_PSTR,
   0
 };
+
 FVM::Task<32,16> task(Serial, SKETCH_CODE);
 #endif
 

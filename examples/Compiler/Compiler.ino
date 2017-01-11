@@ -27,8 +27,15 @@
  *
  * @section Words
  *
- * compiled-words ( -- ) print list of compiled words
- * generate-code ( -- ) print source code for compiled words
+ * ( comment ) start comment.
+ * ." string" print string.
+ * : ( -- ) start compile of function defintion.
+ * ; ( -- ) end compile of function definition.
+ * variable ( -- ) define variable.
+ * constant ( value -- ) define constant with given value.
+ *
+ * compiled-words ( -- ) print list of compiled words.
+ * generate-code ( -- ) print source code for compiled words.
  * room ( -- bytes ) number bytes left in data area.
  *
  * if ( -- addr ) start conditional block.
@@ -60,7 +67,24 @@
 #define USE_TAIL
 #define USE_ALIAS
 
-// : mark> ( -- addr ) here 0 c, ;
+/*
+: mark> ( -- addr ) here 0 c, ;
+: resolve> ( addr -- ) here over - swap c! ;
+: <mark ( -- addr ) here ;
+: <resolve ( addr -- ) here - c, ;
+: if ( -- addr ) compile (0branch) mark> ; immediate
+: then ( addr -- ) resolve> ; immediate
+: else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
+: begin ( -- addr ) <mark ; immediate
+: again ( addr -- ) compile (branch) <resolve ; immediate
+: until ( addr -- ) compile (0branch) <resolve ; immediate
+: while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
+: repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
+: do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
+: loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
+: +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
+*/
+
 FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(HERE),
   FVM_OP(ZERO),
@@ -68,7 +92,6 @@ FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(EXIT)
 };
 
-// : resolve> ( addr -- ) here over - swap c! ;
 FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(HERE),
   FVM_OP(OVER),
@@ -78,13 +101,11 @@ FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(EXIT)
 };
 
-// : <mark ( -- addr ) here ;
 FVM_COLON(2, BACKWARD_MARK, "<mark")
   FVM_OP(HERE),
   FVM_OP(EXIT)
 };
 
-// : <resolve ( addr -- ) here - c, ;
 FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
   FVM_OP(HERE),
   FVM_OP(MINUS),
@@ -92,7 +113,6 @@ FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
   FVM_OP(EXIT)
 };
 
-// : if ( -- addr ) compile (0branch) mark> ; immediate
 FVM_COLON(4, IF, "if")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
@@ -104,7 +124,6 @@ FVM_COLON(4, IF, "if")
 #endif
 };
 
-// : then ( addr -- ) resolve> ; immediate
 #if defined(USE_ALIAS)
 const int THEN = 5;
 const char THEN_PSTR[] PROGMEM = "then";
@@ -120,7 +139,6 @@ FVM_COLON(5, THEN, "then")
 };
 #endif
 
-// : else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
 FVM_COLON(6, ELSE, "else")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
@@ -134,7 +152,6 @@ FVM_COLON(6, ELSE, "else")
 #endif
 };
 
-// : begin ( -- addr ) <mark ; immediate
 #if defined(USE_ALIAS)
 const int BEGIN = 7;
 const char BEGIN_PSTR[] PROGMEM = "begin";
@@ -150,7 +167,6 @@ FVM_COLON(7, BEGIN, "begin")
 };
 #endif
 
-// : again ( addr -- ) compile (branch) <resolve ; immediate
 FVM_COLON(8, AGAIN, "again")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
@@ -162,7 +178,6 @@ FVM_COLON(8, AGAIN, "again")
 #endif
 };
 
-// : until ( addr -- ) compile (0branch) <resolve ; immediate
 FVM_COLON(9, UNTIL, "until")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
@@ -174,7 +189,6 @@ FVM_COLON(9, UNTIL, "until")
 #endif
 };
 
-// : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
 #if defined(USE_ALIAS)
 const int WHILE = 10;
 const char WHILE_PSTR[] PROGMEM = "while";
@@ -191,7 +205,6 @@ FVM_COLON(10, WHILE, "while")
 #endif
 #endif
 
-// : repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
 FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
@@ -203,7 +216,6 @@ FVM_COLON(11, REPEAT, "repeat")
 #endif
 };
 
-// : do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
 FVM_COLON(12, DO, "do")
   FVM_OP(COMPILE),
   FVM_OP(DO),
@@ -216,7 +228,6 @@ FVM_COLON(12, DO, "do")
 #endif
 };
 
-// : loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
 FVM_COLON(13, LOOP, "loop")
   FVM_OP(COMPILE),
   FVM_OP(LOOP),
@@ -229,7 +240,6 @@ FVM_COLON(13, LOOP, "loop")
 #endif
 };
 
-// : +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
 FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(COMPILE),
   FVM_OP(PLUS_LOOP),
@@ -339,19 +349,21 @@ void loop()
 	fvm.dp(latest);
 	compiling = false;
       }
-      if (compiling) {
-	if (value < INT8_MIN || value > INT8_MAX) {
-	  fvm.compile(FVM::OP_LIT);
-	  fvm.compile(value);
-	  fvm.compile(value >> 8);
+      else {
+	if (compiling) {
+	  if (value < INT8_MIN || value > INT8_MAX) {
+	    fvm.compile(FVM::OP_LIT);
+	    fvm.compile(value);
+	    fvm.compile(value >> 8);
+	  }
+	  else {
+	    fvm.compile(FVM::OP_CLIT);
+	    fvm.compile(value);
+	  }
 	}
 	else {
-	  fvm.compile(FVM::OP_CLIT);
-	  fvm.compile(value);
+	  task.push(value);
 	}
-      }
-      else {
-	task.push(value);
       }
     }
   }

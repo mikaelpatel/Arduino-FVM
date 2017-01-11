@@ -27,7 +27,6 @@
 
 #include "FVM.h"
 
-// does> ( index array-addr -- element-addr ) swap cells + ;
 FVM_COLON(0, ARRAY, "(array)")
   FVM_OP(DOES),
   FVM_OP(SWAP),
@@ -36,7 +35,6 @@ FVM_COLON(0, ARRAY, "(array)")
   FVM_OP(EXIT)
 };
 
-// does> ( addr -- x y ) dup @ swap cell + @ ;
 FVM_COLON(1, TWO_CONST, "(2const)")
   FVM_OP(DOES),
   FVM_OP(DUP),
@@ -48,37 +46,29 @@ FVM_COLON(1, TWO_CONST, "(2const)")
   FVM_OP(EXIT)
 };
 
-// variable x 42 x !
 int x = 42;
 FVM_VARIABLE(2, X, x);
 
-// -42 constant y
 FVM_CONSTANT(3, Y, "y", -42);
 
-// create z 1 , 2 , 4 , 8 , does: (array)
 int z[] = { 1, 2, 4, 8 };
 FVM_CREATE(4, Z, ARRAY, z);
 
-// create c2 1 , 2 , does: (2const)
 int c2[] = { 1, 2 };
 FVM_CREATE(5, C2, TWO_CONST, c2);
 
-// create pad 32 cells allot
 const int PAD_MAX = 32;
 char pad[PAD_MAX];
 FVM_VARIABLE(6, PAD, pad);
 
-// Extended function call
-FVM::cell_t* numbers(FVM::cell_t* sp)
+void numbers(FVM::task_t &task)
 {
-  *++sp = 1;
-  *++sp = 2;
-  *++sp = 3;
-  return (sp);
+  task.push(1);
+  task.push(2);
+  task.push(3);
 }
 FVM_FUNCTION(7, NUMBERS, numbers);
 
-// Sketch function table
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) ARRAY_CODE,
   (code_P) TWO_CONST_CODE,
@@ -90,7 +80,6 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &NUMBERS_FUNC
 };
 
-// Sketch symbol table
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) ARRAY_PSTR,
   (str_P) TWO_CONST_PSTR,
@@ -103,10 +92,8 @@ const str_P FVM::fnstr[] PROGMEM = {
   0
 };
 
-// Data area for the shell (if needed)
 uint8_t data[128];
 
-// Forth virtual machine and task
 FVM fvm(data);
 FVM::Task<32,16> task(Serial);
 

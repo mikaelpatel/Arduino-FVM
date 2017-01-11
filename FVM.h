@@ -223,28 +223,17 @@ class FVM {
     SKETCH_MAX = 383
   };
 
+  /** Cell data type. */
   typedef int16_t cell_t;
   typedef uint16_t ucell_t;
+
+  /** Double cell data type. */
   typedef int32_t cell2_t;
   typedef uint32_t ucell2_t;
+
+  /** Operation code/function index. */
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
-  typedef cell_t* (*fn_t)(cell_t* sp);
-
-  struct var_t {
-    code_t op;			// OP_VAR
-    cell_t* value;		// Pointer to value (RAM)
-  };
-
-  struct const_t {
-    code_t op;			// OP_CONST
-    cell_t value;		// Value of constant
-  };
-
-  struct func_t {
-    code_t op;			// OP_FUNC
-    fn_t fn;			// Pointer to function
-  };
 
   struct task_t {
     Stream& m_ios;		// Input/Output stream
@@ -257,8 +246,9 @@ class FVM {
     cell_t* m_sp0;		// Parameter stack bottom pointer
 
     /**
-     * Construct task with given in-/output stream and function
-     * pointer.
+     * Construct task with given in-/output stream, stacks and
+     * function pointer. Default number conversion base is 10,
+     * and trace disables.
      * @param[in] ios in-/output stream.
      * @param[in] sp0 bottom of parameter stack.
      * @param[in] rp0 bottom of return stack.
@@ -337,6 +327,26 @@ class FVM {
     Task(Stream& ios, code_P fn = 0) :
       task_t(ios, m_params, m_returns, fn)
     {}
+  };
+
+  struct var_t {
+    code_t op;			// OP_VAR
+    cell_t* value;		// Pointer to value (RAM)
+  };
+
+  struct const_t {
+    code_t op;			// OP_CONST
+    cell_t value;		// Value of constant
+  };
+
+  /**
+   * Wrapper for extension functions.
+   * @param[in] task.
+   */
+  typedef void (*fn_t)(task_t &task);
+  struct func_t {
+    code_t op;			// OP_FUNC
+    fn_t fn;			// Pointer to function
   };
 
   /**
