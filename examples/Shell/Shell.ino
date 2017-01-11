@@ -69,7 +69,7 @@ char pad[PAD_MAX];
 FVM_VARIABLE(6, PAD, pad);
 
 // Extended function call
-FVM::data_t* numbers(FVM::data_t* sp)
+FVM::cell_t* numbers(FVM::cell_t* sp)
 {
   *++sp = 1;
   *++sp = 2;
@@ -108,7 +108,7 @@ uint8_t data[128];
 
 // Forth virtual machine and task
 FVM fvm(data);
-FVM::task_t task(Serial);
+FVM::Task<32,16> task(Serial);
 
 void setup()
 {

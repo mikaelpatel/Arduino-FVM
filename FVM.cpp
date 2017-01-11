@@ -24,11 +24,13 @@
 #include "FVM.h"
 
 /**
- * Enable symbolic trace of virtual machine instruction cycle. Print
- * execute time, instruction pointer, operation code and stack
- * contents.
+ * Enable symbolic trace of virtual machine instruction cycle.
+ * 0: No trace.
+ * 1: Print indentated operation code and stack contents.
+ * 2: Print execute time, instruction pointer, return stack depth,
+ * operation code and stack contents.
  */
-#define FVM_TRACE
+#define FVM_TRACE 1
 
 /**
  * Enable kernel dictionary. Remove to reduce foot-print for
@@ -39,11 +41,12 @@
 // Forth Virtual Machine support macros
 #define NEXT() goto INNER
 #define OP(n) case OP_ ## n:
-#define FETCH(ip) pgm_read_byte(ip)
-#define WFETCH(ip) pgm_read_word(ip)
+#define FETCH(ip) (int8_t) pgm_read_byte(ip)
+#define WFETCH(ip) (cell_t) pgm_read_word(ip)
 #define CALL(fn) tp = fn; goto FNCALL
-#define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(&fnstr[-ir-1])
-#define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(&opstr[ir])
+#define FNTAB(ir) (code_P) pgm_read_word(fntab-ir-1)
+#define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(fnstr-ir-1)
+#define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(opstr+ir)
 
 int FVM::lookup(const char* name)
 {
@@ -87,16 +90,16 @@ int FVM::resume(task_t& task)
 {
   // Restore virtual machine state
   Stream& ios = task.m_ios;
-  data_t* sp = task.m_sp;
-  data_t tos = *sp--;
+  cell_t* sp = task.m_sp;
+  cell_t tos = *sp--;
   const code_t* ip = task.m_ip;
   const code_t** rp = task.m_rp;
   const code_t* tp;
-  data_t tmp;
+  cell_t tmp;
   int8_t ir;
 
   // Benchmark support in trace mode; measure micro-seconds per operation
-#if defined(FVM_TRACE)
+#if (FVM_TRACE == 2)
   uint32_t start = micros();
 #endif
 
@@ -105,45 +108,55 @@ int FVM::resume(task_t& task)
   // opcodes (-1..-128) are negative index (plus one) in function
   // table. Direct operation codes may be implemented as a primitive
   // or as an internal function call.
-#if !defined(FVM_TRACE)
+#if (FVM_TRACE == 0)
 
-  while ((ir = (int8_t) FETCH(ip++)) < 0) {
+  while ((ir = FETCH(ip++)) < 0) {
     *++rp = ip;
-    ip = (code_P) pgm_read_word(fntab-ir-1);
+    ip = FNTAB(ir);
   }
 
 #else
   // Trace execution; micro-seconds, instruction pointer,
-  // return stack, instruction/function, and stack contents
+  // return stack depth, instruction/function, and stack contents
   do {
     if (task.m_trace) {
+#if (FVM_TRACE == 2)
       // Print measurement of latest operation; micro-seconds
       ios.print(micros() - start);
       ios.print(':');
       // Print current instruction pointer
       ios.print((uint16_t) ip);
       ios.print(':');
-      // Print current return stack pointer
-      ios.print((uint16_t) rp);
+      // Print current return stack depth
+      ios.print((uint16_t) (rp - task.m_rp0));
       ios.print(':');
+#else
+      uint16_t depth = (uint16_t) (rp - task.m_rp0);
+      while (depth--) ios.print(' ');
+#endif
     }
     // Fetch next instruction and check for function call or primitive
     // Print name of function or primitive
-    ir = (int8_t) FETCH(ip++);
+    ir = FETCH(ip++);
     if (ir < 0 ) {
       *++rp = ip;
-      ip = (code_P) pgm_read_word(fntab-ir-1);
+      ip = FNTAB(ir);
       if (task.m_trace) {
-	ios.print(127-ir);
-	ios.print(':');
+#if defined(FVM_DICT)
 	ios.print(FNSTR(ir));
+#else
+	ios.print(KERNEL_MAX-ir-1);
+#endif
       }
     }
     else if (task.m_trace) {
-      ios.print(ir);
 #if defined(FVM_DICT)
-      ios.print(':');
-      ios.print(OPSTR(ir));
+      if (ir != OP_TAIL)
+	ios.print(OPSTR(ir));
+      else
+	ios.print(FNSTR(FETCH(ip)));
+#else
+      ios.print(ir);
 #endif
     }
     // Print stack contents
@@ -153,7 +166,7 @@ int FVM::resume(task_t& task)
       ios.print(tmp);
       ios.print(F("]: "));
       if (tmp > 0) {
-	data_t* tp = task.m_sp0 + 1;
+	cell_t* tp = task.m_sp0 + 1;
 	while (--tmp) {
 	  ios.print(*++tp);
 	  ios.print(' ');
@@ -164,13 +177,15 @@ int FVM::resume(task_t& task)
     }
     // Flush output and start measurement
     ios.flush();
-    start = micros();
+#if (FVM_TRACE == 2)
+    if (task.m_trace) start = micros();
+#endif
   } while (ir < 0);
 #endif
 
   // Dispatch instruction; primitive or internal function call
- DISPATCH:
-  switch (ir) {
+DISPATCH:
+  switch ((uint8_t) ir) {
 
   // -exit ( flag -- )
   // Exit from call if zero/false
@@ -189,7 +204,7 @@ int FVM::resume(task_t& task)
   // Push literal data (little-endian)
   OP(LIT)
     *++sp = tos;
-    tos = FETCH(ip++);
+    tos = (uint8_t) FETCH(ip++);
     tos |= (FETCH(ip++) << 8);
   NEXT();
 
@@ -197,7 +212,7 @@ int FVM::resume(task_t& task)
   // Push literal data
   OP(CLIT)
     *++sp = tos;
-    tos = (int8_t) FETCH(ip++);
+    tos = FETCH(ip++);
   NEXT();
 
   // (var) ( -- addr )
@@ -208,7 +223,7 @@ int FVM::resume(task_t& task)
   // Push value of contant
   OP(CONST)
     *++sp = tos;
-    tos = (data_t) WFETCH(ip);
+    tos = WFETCH(ip);
     ip = *rp--;
   NEXT();
 
@@ -229,14 +244,14 @@ int FVM::resume(task_t& task)
   OP(DOES)
     *++sp = tos;
     tp = *rp--;
-    tos = (data_t) WFETCH(tp);
+    tos = WFETCH(tp);
   NEXT();
 
   // (param) ( x0..xn -- x0..xn x0 )
   // Duplicate inline index stack element to top of stack
   OP(PARAM)
     *++sp = tos;
-    ir = (int8_t) FETCH(ip++);
+    ir = FETCH(ip++);
     tos = *(sp - ir);
   NEXT();
 
@@ -244,19 +259,19 @@ int FVM::resume(task_t& task)
   // Push pointer to literal and branch
   OP(SLIT)
     *++sp = tos;
-    tos = (data_t) ip + 1;
+    tos = (cell_t) ip + 1;
 
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127)
   OP(BRANCH)
-    ir = (int8_t) FETCH(ip);
+    ir = FETCH(ip);
     ip += ir;
   NEXT();
 
   // (0branch) ( flag -- )
   // Branch zero equal/false (8-bit offset, -128..127)
   OP(ZERO_BRANCH)
-    ir = (int8_t) FETCH(ip);
+    ir = FETCH(ip);
     ip += (tos == 0) ? ir : 1;
     tos = *sp--;
   NEXT();
@@ -271,7 +286,7 @@ int FVM::resume(task_t& task)
       ip += 1;
     }
     else {
-      ir = (int8_t) FETCH(ip);
+      ir = FETCH(ip);
       ip += ir;
     }
     tos = *sp--;
@@ -281,7 +296,7 @@ int FVM::resume(task_t& task)
   // Outer loop index
   OP(J)
     *++sp = tos;
-    tos = (data_t) *(rp - 2);
+    tos = (cell_t) *(rp - 2);
   NEXT();
 
   // leave ( -- rp: high high )
@@ -295,7 +310,7 @@ int FVM::resume(task_t& task)
   OP(LOOP)
     *rp += 1;
     if (*rp < *(rp - 1)) {
-      ir = (int8_t) FETCH(ip);
+      ir = FETCH(ip);
       ip += ir;
     }
     else {
@@ -309,7 +324,7 @@ int FVM::resume(task_t& task)
   OP(PLUS_LOOP)
     *rp += tos;
     if (*rp < *(rp - 1)) {
-      ir = (int8_t) FETCH(ip);
+      ir = FETCH(ip);
       ip += ir;
     }
     else {
@@ -322,7 +337,7 @@ int FVM::resume(task_t& task)
   // (compile) ( -- )
   // Add inline operation/function
   OP(COMPILE)
-    *m_dp++ = (int8_t) FETCH(ip++);
+    *m_dp++ = FETCH(ip++);
   NEXT();
 
   // (trap) ( -- )
@@ -369,13 +384,13 @@ int FVM::resume(task_t& task)
   // @ ( addr -- x )
   // Load data given address on top of stack
   OP(FETCH)
-    tos = *((data_t*) tos);
+    tos = *((cell_t*) tos);
   NEXT();
 
   // ! ( x addr -- )
   // Store data given address on top of stack
   OP(STORE)
-    *((data_t*) tos) = *sp--;
+    *((cell_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
@@ -383,7 +398,7 @@ int FVM::resume(task_t& task)
   // Add data given address on top of stack
   OP(PLUS_STORE)
 #if 0
-    *((data_t*) tos) += *sp--;
+    *((cell_t*) tos) += *sp--;
     tos = *sp--;
   NEXT();
 #else
@@ -404,7 +419,7 @@ int FVM::resume(task_t& task)
   // Push address to data pointer
   OP(DP)
     *++sp = tos;
-    tos = (data_t) &m_dp;
+    tos = (cell_t) &m_dp;
   NEXT();
 
   // here ( -- addr )
@@ -412,7 +427,7 @@ int FVM::resume(task_t& task)
   OP(HERE)
 #if 0
     *++sp = tos;
-    tos = (data_t) m_dp;
+    tos = (cell_t) m_dp;
   NEXT();
 #else
   // : here ( -- addr ) dp @ ;
@@ -445,8 +460,8 @@ int FVM::resume(task_t& task)
   // Allocate and assign from top of stack
   OP(COMMA)
 #if 0
-    *((data_t*) m_dp) = tos;
-    m_dp += sizeof(data_t);
+    *((cell_t*) m_dp) = tos;
+    m_dp += sizeof(cell_t);
     tos = *sp--;
   NEXT();
 #else
@@ -484,7 +499,7 @@ int FVM::resume(task_t& task)
   // Convert cells to bytes for allot
   OP(CELLS)
 #if 1
-    tos *= sizeof(data_t);
+    tos *= sizeof(cell_t);
   NEXT();
 #else
   // : cells ( x -- y ) cell * ;
@@ -507,7 +522,7 @@ int FVM::resume(task_t& task)
   // Pop data from return stack
   OP(R_FROM)
     *++sp = tos;
-    tos = (data_t) *rp--;
+    tos = (cell_t) *rp--;
   NEXT();
 
   // i ( -- i )
@@ -518,14 +533,14 @@ int FVM::resume(task_t& task)
   // Copy data from top of return stack
   OP(R_FETCH)
     *++sp = tos;
-    tos = (data_t) *rp;
+    tos = (cell_t) *rp;
   NEXT();
 
   // sp ( -- addr )
   // Push stack pointer
   OP(SP)
     *++sp = tos;
-    tos = (data_t) sp;
+    tos = (cell_t) sp;
   NEXT();
 
   // depth ( x1..xn -- x1..xn n )
@@ -749,7 +764,7 @@ int FVM::resume(task_t& task)
   // Size of data element in bytes
   OP(CELL)
     *++sp = tos;
-    tos = sizeof(data_t);
+    tos = sizeof(cell_t);
   NEXT();
 
   // -2 ( -- -2 )
@@ -893,7 +908,7 @@ int FVM::resume(task_t& task)
   // Multiply and divide top of stack elements
   OP(STAR_SLASH)
     tmp = *sp--;
-    tos = (((data2_t) tmp) * (*sp--)) / tos;
+    tos = (((cell2_t) tmp) * (*sp--)) / tos;
   NEXT();
 
   // / ( x y -- x/y )
@@ -1167,7 +1182,7 @@ int FVM::resume(task_t& task)
   // u< ( x<y: x y -- -1, else 0 )
   // Second element is unsigned less than top element
   OP(U_LESS)
-    tos = ((udata_t) *sp-- < (udata_t) tos) ? -1 : 0;
+    tos = ((ucell_t) *sp-- < (ucell_t) tos) ? -1 : 0;
   NEXT();
 
   // lookup ( str -- n )
@@ -1177,10 +1192,10 @@ int FVM::resume(task_t& task)
   NEXT();
 
   // >body ( n -- addr )
-  // Access data area for given token (must be greater than 127).
+  // Access data area for given token (must be greater than KERNEL_MAX).
   OP(TO_BODY)
     tp = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
-    tos = (data_t) WFETCH(tp+1);
+    tos = WFETCH(tp+1);
   NEXT();
 
   // words ( -- )
@@ -1253,7 +1268,7 @@ int FVM::resume(task_t& task)
   // Number conversion base.
   OP(BASE)
     *++sp = tos;
-    tos = (data_t) &task.m_base;
+    tos = (cell_t) &task.m_base;
   NEXT();
 
   // hex ( -- )
@@ -1378,7 +1393,7 @@ int FVM::resume(task_t& task)
   // u. ( ux -- )
   // Print value on top of stack as unsigned number.
   OP(U_DOT)
-    ios.print((udata_t) tos, task.m_base);
+    ios.print((ucell_t) tos, task.m_base);
     tos = *sp--;
   NEXT();
 
@@ -1421,7 +1436,7 @@ int FVM::resume(task_t& task)
     ios.print(tmp);
     ios.print(F("]: "));
     if (tmp > 0) {
-      data_t* tp = task.m_sp0 + 1;
+      cell_t* tp = task.m_sp0 + 1;
       while (--tmp) {
 	ios.print(*++tp, task.m_base);
 	ios.print(' ');
@@ -1479,7 +1494,7 @@ int FVM::resume(task_t& task)
     const __FlashStringHelper* s = NULL;
     if (tos < KERNEL_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
-    else if (tos < 255)
+    else if (tos < SKETCH_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-KERNEL_MAX]);
     tos = (s != NULL) ? ios.print(s) : 0;
   }
@@ -1580,6 +1595,7 @@ int FVM::resume(task_t& task)
   // halt ( -- )
   // Halt virtual machine and save context
   OP(HALT)
+    rp = task.m_rp0;
     ip -= 1;
 
   // yield ( -- )
@@ -1591,15 +1607,22 @@ int FVM::resume(task_t& task)
     task.m_rp = rp;
   return (ir == OP_YIELD);
 
+  // tail ( -- )
+  // Tail call function
+  OP(TAIL)
+    ir = FETCH(ip++);
+    ip = FNTAB(ir);
+  NEXT();
+
   // fncall ( -- )
   // Call internal function (pointer in tp)
   FNCALL:
     *++rp = ip;
     ip = tp;
 
-  // nop ( -- )
+  // noop ( -- )
   // No operation
-  OP(NOP)
+  OP(NOOP)
   NEXT();
 
   default:
@@ -1608,27 +1631,15 @@ int FVM::resume(task_t& task)
   return (-1);
 }
 
-
-int FVM::execute(code_P fn, task_t& task)
+int FVM::execute(int op, task_t& task)
 {
-  return (resume(task.call(fn)));
-}
-
-int FVM::execute(code_t op, task_t& task)
-{
+  if (op < 0 || op > SKETCH_MAX) return (-1);
   static const code_t EXECUTE_CODE[] PROGMEM = {
     FVM_OP(EXECUTE),
     FVM_OP(HALT)
   };
-  task.push((uint8_t) op);
+  task.push(op);
   return (execute(EXECUTE_CODE, task));
-}
-
-int FVM::execute(const char* name, task_t& task)
-{
-  int op = lookup(name);
-  if (op == -1) return (-1);
-  return (execute(op, task));
 }
 
 int FVM::interpret(task_t& task)
@@ -1645,7 +1656,7 @@ int FVM::interpret(task_t& task)
       return (-1);
     }
     task.push(value);
-    execute(OP_NOP, task);
+    execute(OP_NOOP, task);
   }
   if (c == '\n' && !task.trace())
     execute(FVM::OP_DOT_S, task);
@@ -1780,7 +1791,8 @@ static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
 static const char HALT_PSTR[] PROGMEM = "halt";
 static const char YIELD_PSTR[] PROGMEM = "yield";
-static const char NOP_PSTR[] PROGMEM = "nop";
+static const char TAIL_PSTR[] PROGMEM = "tail";
+static const char NOOP_PSTR[] PROGMEM = "noop";
 #endif
 
 const str_P FVM::opstr[] PROGMEM = {
@@ -1912,7 +1924,8 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ANALOGWRITE_PSTR,
   (str_P) HALT_PSTR,
   (str_P) YIELD_PSTR,
-  (str_P) NOP_PSTR,
+  (str_P) TAIL_PSTR,
+  (str_P) NOOP_PSTR,
 #endif
   0
 };

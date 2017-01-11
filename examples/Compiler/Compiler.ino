@@ -56,6 +56,10 @@
 // Code generation dictionary word prefix (C++)
 #define PREFIX "WORD"
 
+// Compiler variants (performance/footprint)
+#define USE_TAIL
+#define USE_ALIAS
+
 // : mark> ( -- addr ) here 0 c, ;
 FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(HERE),
@@ -92,15 +96,29 @@ FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
 FVM_COLON(4, IF, "if")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_MARK)
+#else
   FVM_CALL(FORWARD_MARK),
   FVM_OP(EXIT)
+#endif
 };
 
 // : then ( addr -- ) resolve> ; immediate
+#if defined(USE_ALIAS)
+const int THEN = 5;
+const char THEN_PSTR[] PROGMEM = "then";
+#define THEN_CODE FORWARD_RESOLVE_CODE
+#else
 FVM_COLON(5, THEN, "then")
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_RESOLVE)
+#else
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
+#endif
 
 // : else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
 FVM_COLON(6, ELSE, "else")
@@ -108,53 +126,81 @@ FVM_COLON(6, ELSE, "else")
   FVM_OP(BRANCH),
   FVM_CALL(FORWARD_MARK),
   FVM_OP(SWAP),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_RESOLVE)
+#else
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
 // : begin ( -- addr ) <mark ; immediate
+#if defined(USE_ALIAS)
+const int BEGIN = 7;
+const char BEGIN_PSTR[] PROGMEM = "begin";
+#define BEGIN_CODE BACKWARD_MARK_CODE
+#else
 FVM_COLON(7, BEGIN, "begin")
+#if defined(USE_TAIL)
+  FVM_TAIL(BACKWARD_MARK)
+#else
   FVM_CALL(BACKWARD_MARK),
   FVM_OP(EXIT)
+#endif
 };
+#endif
 
 // : again ( addr -- ) compile (branch) <resolve ; immediate
 FVM_COLON(8, AGAIN, "again")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
+#if defined(USE_TAIL)
+  FVM_TAIL(BACKWARD_RESOLVE)
+#else
   FVM_CALL(BACKWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
 // : until ( addr -- ) compile (0branch) <resolve ; immediate
 FVM_COLON(9, UNTIL, "until")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
+#if defined(USE_TAIL)
+  FVM_TAIL(BACKWARD_RESOLVE)
+#else
   FVM_CALL(BACKWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
-#if 0
 // : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
-FVM_COLON(10, WHILE, "while")
-  FVM_OP(COMPILE),
-  FVM_OP(ZERO_BRANCH),
-  FVM_CALL(FORWARD_MARK),
-  FVM_OP(EXIT)
-};
-#else
-// : while ( addr1 -- addr1 addr2 ) [compile] if ; immediate
+#if defined(USE_ALIAS)
 const int WHILE = 10;
 const char WHILE_PSTR[] PROGMEM = "while";
 # define WHILE_CODE IF_CODE
+#else
+FVM_COLON(10, WHILE, "while")
+  FVM_OP(COMPILE),
+  FVM_OP(ZERO_BRANCH),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_MARK)
+#else
+  FVM_CALL(FORWARD_MARK),
+  FVM_OP(EXIT)
+#endif
 #endif
 
 // : repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
 FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_RESOLVE)
+#else
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
 // : do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
@@ -162,8 +208,12 @@ FVM_COLON(12, DO, "do")
   FVM_OP(COMPILE),
   FVM_OP(DO),
   FVM_CALL(FORWARD_MARK),
+#if defined(USE_TAIL)
+  FVM_TAIL(BACKWARD_MARK)
+#else
   FVM_CALL(BACKWARD_MARK),
   FVM_OP(EXIT)
+#endif
 };
 
 // : loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
@@ -171,8 +221,12 @@ FVM_COLON(13, LOOP, "loop")
   FVM_OP(COMPILE),
   FVM_OP(LOOP),
   FVM_CALL(BACKWARD_RESOLVE),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_RESOLVE)
+#else
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
 // : +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
@@ -180,8 +234,12 @@ FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(COMPILE),
   FVM_OP(PLUS_LOOP),
   FVM_CALL(BACKWARD_RESOLVE),
+#if defined(USE_TAIL)
+  FVM_TAIL(FORWARD_RESOLVE)
+#else
   FVM_CALL(FORWARD_RESOLVE),
   FVM_OP(EXIT)
+#endif
 };
 
 FVM_SYMBOL(15, COMMENT, "(");
@@ -248,7 +306,7 @@ uint8_t* latest = data;
 
 // Forth virtual machine and task
 FVM fvm(data);
-FVM::task_t task(Serial);
+FVM::Task<64,32> task(Serial);
 
 void setup()
 {

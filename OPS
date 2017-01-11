@@ -125,4 +125,5 @@
     OP_ANALOGWRITE = 124,	// Write pwm pin
     OP_HALT = 125,		// Halt virtual machine
     OP_YIELD = 126,		// Yield virtual machine
-    OP_NOP = 127		// No-operation
+    OP_TAIL = 127,		// Tail call
+    OP_NOOP = 128,		// No operation

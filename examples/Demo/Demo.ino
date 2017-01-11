@@ -27,9 +27,6 @@
 #include "FVM.h"
 
 const int SKETCH_FN = 0;
-const int MESSAGE_INDEX = 130 + SKETCH_FN;
-
-const char MESSAGE_PSTR[] PROGMEM = "message";
 const char SKETCH_PSTR[] PROGMEM = "sketch";
 const FVM::code_t SKETCH_CODE[] PROGMEM = {
   // Stack operations
@@ -196,9 +193,6 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
   FVM_OP(DOT_NAME),		// 128
   FVM_OP(DROP),			// 5
   FVM_OP(SPACE),		// 4
-  FVM_LIT(MESSAGE_INDEX),	// -
-  FVM_OP(DOT_NAME),		// 129
-  FVM_OP(DROP),			// 6
   FVM_OP(CR),			// 4
   FVM_OP(YIELD),		// -
   FVM_OP(TRUE),			// -1
@@ -216,13 +210,11 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
 
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) SKETCH_PSTR,
-  0,
-  (str_P) MESSAGE_PSTR,
   0
 };
 
 FVM fvm;
-FVM::task_t task(Serial, SKETCH_CODE);
+FVM::Task<32,16> task(Serial, SKETCH_CODE);
 
 void setup()
 {

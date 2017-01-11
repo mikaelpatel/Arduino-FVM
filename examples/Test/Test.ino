@@ -92,7 +92,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   0
 };
 
-FVM::task_t task(Serial);
+FVM::Task<32,16> task(Serial);
 FVM fvm;
 
 void setup()

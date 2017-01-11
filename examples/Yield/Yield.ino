@@ -25,11 +25,11 @@
  * performance.
  *
  * @section Measurements
- * Yield/branch: 9.3 us (27.5 us with trace)
- * Halt: 6.4 us (17.2 us with trace).
+ * Halt: 6.9 us, 11.5, 15.0 us/trace mode
+ * Yield/branch: 9.4 us, 18.6, 22.4 us
  *
  * @section Environment
- * Arduino Uno/IDE 1.8.0
+ * Arduino Uno/IDE 1.8.1
  */
 
 #include "FVM.h"
@@ -60,7 +60,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   0
 };
 
-FVM::task_t task(Serial, SKETCH_CODE);
+FVM::Task<32,16> task(Serial, SKETCH_CODE);
 FVM fvm;
 
 void setup()

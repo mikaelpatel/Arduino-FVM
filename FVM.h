@@ -212,72 +212,74 @@ class FVM {
      */
     OP_HALT = 125,		// Halt virtual machine
     OP_YIELD = 126,		// Yield virtual machine
+    OP_TAIL = 127,		// Tail call
+    OP_NOOP = 128,		// No operation
 
     /*
-     * Last operation code
+     * Max dictionary tokens
      */
-    OP_NOP = 127,		// No-operation
-    KERNEL_MAX = 128
-  } __attribute__((packed));
+    CORE_MAX = 128,
+    KERNEL_MAX = 256,
+    SKETCH_MAX = 383
+  };
 
-  typedef int16_t data_t;
-  typedef uint16_t udata_t;
-  typedef int32_t data2_t;
-  typedef uint32_t udata2_t;
+  typedef int16_t cell_t;
+  typedef uint16_t ucell_t;
+  typedef int32_t cell2_t;
+  typedef uint32_t ucell2_t;
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
+  typedef cell_t* (*fn_t)(cell_t* sp);
 
   struct var_t {
-    code_t op;
-    data_t* value;
+    code_t op;			// OP_VAR
+    cell_t* value;		// Pointer to value (RAM)
   };
 
   struct const_t {
-    code_t op;
-    data_t value;
+    code_t op;			// OP_CONST
+    cell_t value;		// Value of constant
   };
 
-  typedef data_t* (*fn_t)(data_t* sp);
   struct func_t {
-    code_t op;
-    fn_t fn;
+    code_t op;			// OP_FUNC
+    fn_t fn;			// Pointer to function
   };
 
   struct task_t {
-    // Default stack sizes
-    static const int SP0_MAX = 32;
-    static const int RP0_MAX = 16;
-
+    Stream& m_ios;		// Input/Output stream
+    cell_t m_base;		// Number conversion base
+    bool m_trace;		// Trace mode
     code_P m_ip;		// Instruction pointer
     code_P* m_rp;		// Return stack pointer
-    data_t* m_sp;		// Parameter stack pointer
-    Stream& m_ios;		// Input/Output stream
-    data_t m_base;		// Number conversion base
-    bool m_trace;		// Trace mode
-
-    data_t m_sp0[SP0_MAX];	// Parameter stack
-    code_P m_rp0[RP0_MAX];	// Return stack
+    code_P* m_rp0;		// Return stack bottom pointer
+    cell_t* m_sp;		// Parameter stack pointer
+    cell_t* m_sp0;		// Parameter stack bottom pointer
 
     /**
      * Construct task with given in-/output stream and function
      * pointer.
      * @param[in] ios in-/output stream.
-     * @param[in] fn function pointer (default none).
+     * @param[in] sp0 bottom of parameter stack.
+     * @param[in] rp0 bottom of return stack.
+     * @param[in] fn function pointer.
      */
-    task_t(Stream& ios, code_P fn = 0) :
-      m_ip(fn),
-      m_rp(m_rp0),
-      m_sp(m_sp0 + 1),
+    task_t(Stream&ios, cell_t* sp0, code_P* rp0, code_P fn ) :
       m_ios(ios),
       m_base(10),
-      m_trace(false)
+      m_trace(false),
+      m_ip(fn),
+      m_rp(rp0),
+      m_rp0(rp0),
+      m_sp(sp0 + 1),
+      m_sp0(sp0)
     {}
 
     /**
      * Push value to parameter stack.
      * @param[in] value to push.
      */
-    void push(data_t value)
+    void push(cell_t value)
     {
       *++m_sp = value;
     }
@@ -286,7 +288,7 @@ class FVM {
      * Pop value from parameter stack.
      * @return value.
      */
-    data_t pop()
+    cell_t pop()
     {
       return (*m_sp--);
     }
@@ -319,6 +321,22 @@ class FVM {
       m_ip = fn;
       return (*this);
     }
+  };
+
+  template<int PARAMETER_STACK_MAX, int RETURN_STACK_MAX>
+  struct Task : task_t {
+    cell_t m_params[PARAMETER_STACK_MAX];
+    code_P m_returns[RETURN_STACK_MAX];
+
+    /**
+     * Construct task with given in-/output stream and function
+     * pointer.
+     * @param[in] ios in-/output stream.
+     * @param[in] fn function pointer (default none).
+     */
+    Task(Stream& ios, code_P fn = 0) :
+      task_t(ios, m_params, m_returns, fn)
+    {}
   };
 
   /**
@@ -365,8 +383,9 @@ class FVM {
   }
 
   /**
-   * Lookup given string in dictionary. Return operation code (0..127)
-   * or function index (128..255), otherwise negative error code(-1).
+   * Lookup given string in dictionary. Return operation code
+   * (0..KERNEL_MAX-1) or function index (KERNEL_MAX..SKETCH_MAX),
+   * otherwise negative error code(-1).
    * @param[in] name string.
    * @return error code.
    */
@@ -395,7 +414,7 @@ class FVM {
    * @param[in] task to resume.
    * @return error code.
    */
-  int execute(code_t op, task_t& task);
+  int execute(int op, task_t& task);
 
   /**
    * Execute given function code pointer with task. Returns
@@ -404,7 +423,10 @@ class FVM {
    * @param[in] task to resume.
    * @return error code.
    */
-  int execute(code_P fn, task_t& task);
+  int execute(code_P fn, task_t& task)
+  {
+    return (resume(task.call(fn)));
+  }
 
   /**
    * Lookup given name in dictionary and execute with given task.
@@ -413,7 +435,10 @@ class FVM {
    * @param[in] task to resume.
    * @return error code.
    */
-  int execute(const char* name, task_t& task);
+  int execute(const char* name, task_t& task)
+  {
+    return (execute(lookup(name), task));
+  }
 
   /**
    * Interpret; scan, lookup and execute.
@@ -464,6 +489,14 @@ class FVM {
 #define FVM_CALL(fn) FVM::code_t(-fn-1)
 
 /**
+ * Compile tail call to given function in function table.
+ * @param[in] fn function index in table.
+ */
+#define FVM_TAIL(fn)							\
+  FVM::OP_TAIL,								\
+  FVM_CALL(fn)
+
+/**
  * Create a named reference to a created object.
  * @param[in] id identity index.
  * @param[in] var variable name.
@@ -475,7 +508,7 @@ class FVM {
   const char var ## _PSTR[] PROGMEM = #data;				\
   const FVM::var_t var ## _VAR PROGMEM = {				\
     FVM_CALL(does),							\
-    (FVM::data_t*) &data						\
+    (FVM::cell_t*) &data						\
   }
 
 /**
@@ -489,7 +522,7 @@ class FVM {
   const char var ## _PSTR[] PROGMEM = #data;				\
   const FVM::var_t var ## _VAR PROGMEM = {				\
     FVM_OP(VAR),							\
-    (FVM::data_t*) &data						\
+    (FVM::cell_t*) &data						\
   }
 
 /**
@@ -539,7 +572,7 @@ class FVM {
  * @param[in] name dictionary string.
  */
 #define FVM_SYMBOL(id,var,name)						\
-  const int var = id + 128;						\
+  const int var = id + FVM::KERNEL_MAX;					\
   const char var ## _PSTR[] PROGMEM = name
 
 #endif

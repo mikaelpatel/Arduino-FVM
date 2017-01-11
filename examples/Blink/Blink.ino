@@ -29,19 +29,18 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +86   1960 +Blink sketch code and task
- *  +3766 5726 +Forth Virtual Machine
- *  +896  6622 +Kernel dictionary (128 words)
- *  +998  7620 +Trace mode
- *  +2    7622 +Code generated sketch
+ *  +4254 6214 +Forth Virtual Machine
+ *  +896  7110 +Kernel dictionary (128 words)
+ *  +486  7596 +Trace mode
  *
- * Cycle time: 32-36 us
+ * Cycle time: 36, 72, 80 us/trace mode
  *
  * Context switch to FVM, delay check and context
  * switch back to C++/Arduino. The delay check is:
  * millis r@ - over u< (0branch) yield (branch)
  *
  * @section Environment
- * Arduino Uno/IDE 1.8.0
+ * Arduino Uno/IDE 1.8.1
  */
 
 #define MEASURE
@@ -97,7 +96,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   0
 };
 
-FVM::task_t task(Serial, WORD3_CODE);
+FVM::Task<32,16> task(Serial, WORD3_CODE);
 
 #else
 
@@ -144,7 +143,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) SKETCH_PSTR,
   0
 };
-FVM::task_t task(Serial, SKETCH_CODE);
+FVM::Task<32,16> task(Serial, SKETCH_CODE);
 #endif
 
 FVM fvm;
