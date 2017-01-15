@@ -66,6 +66,7 @@ void numbers(FVM::task_t &task)
   task.push(1);
   task.push(2);
   task.push(3);
+  task.push(task.depth());
 }
 FVM_FUNCTION(7, NUMBERS, numbers);
 

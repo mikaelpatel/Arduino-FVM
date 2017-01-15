@@ -45,7 +45,7 @@
 
 #define MEASURE
 #define BLINK_SKETCH
-// #define BLINK_TRACE
+#define BLINK_TRACE
 #define BLINK_RUN
 #define CODE_GENERATED
 

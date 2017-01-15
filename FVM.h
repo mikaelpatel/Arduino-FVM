@@ -239,7 +239,6 @@ class FVM {
     Stream& m_ios;		// Input/Output stream
     cell_t m_base;		// Number conversion base
     bool m_trace;		// Trace mode
-    code_P m_ip;		// Instruction pointer
     code_P* m_rp;		// Return stack pointer
     code_P* m_rp0;		// Return stack bottom pointer
     cell_t* m_sp;		// Parameter stack pointer
@@ -248,7 +247,7 @@ class FVM {
     /**
      * Construct task with given in-/output stream, stacks and
      * function pointer. Default number conversion base is 10,
-     * and trace disables.
+     * and trace disabled.
      * @param[in] ios in-/output stream.
      * @param[in] sp0 bottom of parameter stack.
      * @param[in] rp0 bottom of return stack.
@@ -258,12 +257,13 @@ class FVM {
       m_ios(ios),
       m_base(10),
       m_trace(false),
-      m_ip(fn),
       m_rp(rp0),
       m_rp0(rp0),
       m_sp(sp0 + 1),
       m_sp0(sp0)
-    {}
+    {
+      *++m_rp = fn;
+    }
 
     /**
      * Push value to parameter stack.
@@ -281,6 +281,15 @@ class FVM {
     cell_t pop()
     {
       return (*m_sp--);
+    }
+
+    /**
+     * Parameter stack depth.
+     * @return depth.
+     */
+    int depth()
+    {
+      return (m_sp - m_sp0 - 1);
     }
 
     /**
@@ -308,7 +317,7 @@ class FVM {
      */
     task_t& call(code_P fn)
     {
-      m_ip = fn;
+      *++m_rp = fn;
       return (*this);
     }
   };
@@ -329,11 +338,17 @@ class FVM {
     {}
   };
 
+  /**
+   * Wrapper for variable.
+   */
   struct var_t {
     code_t op;			// OP_VAR
     cell_t* value;		// Pointer to value (RAM)
   };
 
+  /**
+   * Wrapper for constant.
+   */
   struct const_t {
     code_t op;			// OP_CONST
     cell_t value;		// Value of constant
@@ -353,7 +368,10 @@ class FVM {
    * Construct forth virtual machine with given data area.
    * @param[in] dp0 initial data pointer.
    */
-  FVM(void* dp0 = 0) : m_dp((uint8_t*) dp0) {}
+  FVM(void* dp0 = 0) :
+    m_dp((uint8_t*) dp0),
+    m_dp0((uint8_t*) dp0)
+  {}
 
   /**
    * Get current data allocation pointer.
@@ -467,6 +485,7 @@ class FVM {
 
   // Data allocation pointer
   uint8_t* m_dp;
+  uint8_t* m_dp0;
 };
 
 /**
@@ -510,7 +529,7 @@ class FVM {
  * Create a named reference to a created object.
  * @param[in] id identity index.
  * @param[in] var variable name.
- * @param[in] does object handler.
+ * @param[in] does object handler (function).
  * @param[in] data storage.
  */
 #define FVM_CREATE(id,var,does,data)					\

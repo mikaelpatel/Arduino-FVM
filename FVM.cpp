@@ -90,10 +90,10 @@ int FVM::resume(task_t& task)
 {
   // Restore virtual machine state
   Stream& ios = task.m_ios;
+  const code_t** rp = task.m_rp;
+  const code_t* ip = *rp--;
   cell_t* sp = task.m_sp;
   cell_t tos = *sp--;
-  const code_t* ip = task.m_ip;
-  const code_t** rp = task.m_rp;
   const code_t* tp;
   cell_t tmp;
   int8_t ir;
@@ -157,10 +157,7 @@ int FVM::resume(task_t& task)
     }
     else if (task.m_trace) {
 #if defined(FVM_DICT)
-      if (ir != OP_TAIL)
-	ios.print(OPSTR(ir));
-      else
-	ios.print(F("tail "));
+      ios.print(OPSTR(ir));
 #else
       ios.print(ir);
 #endif
@@ -194,20 +191,20 @@ DISPATCH:
   switch ((uint8_t) ir) {
 
   // -exit ( flag -- )
-  // Exit from call if zero/false
+  // Exit from call if zero/false.
   OP(MINUS_EXIT)
     tmp = tos;
     tos = *sp--;
     if (tmp != 0) NEXT();
 
   // exit ( rp: ip -- )
-  // Exit from call. Pop instruction pointer from return stack
+  // Exit from call. Pop instruction pointer from return stack.
   OP(EXIT)
     ip = *rp--;
   NEXT();
 
   // (lit) ( -- x )
-  // Push literal data (little-endian)
+  // Push literal data (little-endian).
   OP(LIT)
     *++sp = tos;
     tos = (uint8_t) FETCH(ip++);
@@ -215,18 +212,18 @@ DISPATCH:
   NEXT();
 
   // (clit) ( -- x )
-  // Push literal data
+  // Push literal data.
   OP(CLIT)
     *++sp = tos;
     tos = FETCH(ip++);
   NEXT();
 
   // (var) ( -- addr )
-  // Push address of variable
+  // Push address of variable.
   OP(VAR)
 
   // (const) ( -- addr )
-  // Push value of contant
+  // Push value of contant.
   OP(CONST)
     *++sp = tos;
     tos = WFETCH(ip);
@@ -234,13 +231,12 @@ DISPATCH:
   NEXT();
 
   // (func) ( -- )
-  // Call extension function.
+  // Call function wrapper.
   OP(FUNC)
   {
     fn_t fn = (fn_t) WFETCH(ip);
     *++sp = tos;
     task.m_sp = sp;
-    task.m_ip = ip;
     task.m_rp = rp;
     fn(task);
     rp = task.m_rp;
@@ -251,15 +247,15 @@ DISPATCH:
   NEXT();
 
   // (does) ( -- value )
-  // Push literal constant and return
+  // Push literal constant and return.
   OP(DOES)
     *++sp = tos;
     tp = *rp--;
     tos = WFETCH(tp);
   NEXT();
 
-  // (param) ( x0..xn -- x0..xn x0 )
-  // Duplicate inline index stack element to top of stack
+  // (param) ( xn..x0 -- xn..x0 xi )
+  // Duplicate inline index stack element to top of stack.
   OP(PARAM)
     *++sp = tos;
     ir = FETCH(ip++);
@@ -267,20 +263,20 @@ DISPATCH:
   NEXT();
 
   // (slit) ( -- addr )
-  // Push pointer to literal and branch
+  // Push pointer to literal and branch.
   OP(SLIT)
     *++sp = tos;
     tos = (cell_t) ip + 1;
 
   // (branch) ( -- )
-  // Branch always (8-bit offset, -128..127)
+  // Branch always (8-bit offset, -128..127).
   OP(BRANCH)
     ir = FETCH(ip);
     ip += ir;
   NEXT();
 
   // (0branch) ( flag -- )
-  // Branch zero equal/false (8-bit offset, -128..127)
+  // Branch zero equal/false (8-bit offset, -128..127).
   OP(ZERO_BRANCH)
     ir = FETCH(ip);
     ip += (tos == 0) ? ir : 1;
@@ -288,7 +284,7 @@ DISPATCH:
   NEXT();
 
   // (do) ( high low -- rp: high low )
-  // Start loop block with index [low..high]
+  // Start loop block with index [low..high].
   OP(DO)
     tmp = *sp--;
     if (tos != tmp) {
@@ -304,20 +300,20 @@ DISPATCH:
   NEXT();
 
   // j ( -- index )
-  // Outer loop index
+  // Outer loop index.
   OP(J)
     *++sp = tos;
     tos = (cell_t) *(rp - 2);
   NEXT();
 
   // leave ( -- rp: high high )
-  // Mark loop block as completed
+  // Mark loop block as completed.
   OP(LEAVE)
     *rp = *(rp - 1);
   NEXT();
 
   // (loop) ( -- )
-  // End loop block (increment index by one)
+  // End loop block (increment index by one).
   OP(LOOP)
     *rp += 1;
     if (*rp < *(rp - 1)) {
@@ -331,7 +327,7 @@ DISPATCH:
   NEXT();
 
   // (+loop) ( n -- )
-  // End loop block (increment index by top of stack)
+  // End loop block (increment index by top of stack).
   OP(PLUS_LOOP)
     *rp += tos;
     if (*rp < *(rp - 1)) {
@@ -346,19 +342,19 @@ DISPATCH:
   NEXT();
 
   // (compile) ( -- )
-  // Add inline operation/function
+  // Add inline operation/function.
   OP(COMPILE)
     *m_dp++ = FETCH(ip++);
   NEXT();
 
   // (trap) ( -- )
-  // Extended operation/function call
+  // Extended operation/function call.
   OP(TRAP)
     ir = FETCH(ip++);
   goto DISPATCH;
 
   // execute ( n -- )
-  // Execute primitive or function (as returned by lookup)
+  // Execute primitive or function (as returned by lookup).
   OP(EXECUTE)
     if (tos < KERNEL_MAX) {
       ir = tos;
@@ -380,33 +376,33 @@ DISPATCH:
   NEXT();
 
   // c@ ( addr -- x )
-  // Load character given address on top of stack
+  // Load character given address on top of stack.
   OP(C_FETCH)
     tos = *((int8_t*) tos);
   NEXT();
 
   // c! ( x addr -- )
-  // Store character given address on top of stack
+  // Store character given address on top of stack.
   OP(C_STORE)
     *((int8_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
   // @ ( addr -- x )
-  // Load data given address on top of stack
+  // Load data given address on top of stack.
   OP(FETCH)
     tos = *((cell_t*) tos);
   NEXT();
 
   // ! ( x addr -- )
-  // Store data given address on top of stack
+  // Store data given address on top of stack.
   OP(STORE)
     *((cell_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
   // +! ( n addr -- )
-  // Add data given address on top of stack
+  // Add data given address on top of stack.
   OP(PLUS_STORE)
 #if 0
     *((cell_t*) tos) += *sp--;
@@ -427,14 +423,14 @@ DISPATCH:
 #endif
 
   // dp ( -- addr )
-  // Push address to data pointer
+  // Push address to data pointer.
   OP(DP)
     *++sp = tos;
     tos = (cell_t) &m_dp;
   NEXT();
 
   // here ( -- addr )
-  // Push data pointer
+  // Push data pointer.
   OP(HERE)
 #if 0
     *++sp = tos;
@@ -451,7 +447,7 @@ DISPATCH:
 #endif
 
   // allot ( n -- )
-  // Allocate number of bytes from data area
+  // Allocate number of bytes from data area.
   OP(ALLOT)
 #if 0
     m_dp += tos;
@@ -468,7 +464,7 @@ DISPATCH:
 #endif
 
   // , ( x -- )
-  // Allocate and assign from top of stack
+  // Allocate and assign from top of stack.
   OP(COMMA)
 #if 0
     *((cell_t*) m_dp) = tos;
@@ -488,7 +484,7 @@ DISPATCH:
 #endif
 
   // c, ( x -- )
-  // Allocate and assign character from top of stack
+  // Allocate and assign character from top of stack.
   OP(C_COMMA)
 #if 0
     *m_dp++ = tos;
@@ -507,7 +503,7 @@ DISPATCH:
 #endif
 
   // cells ( x -- y )
-  // Convert cells to bytes for allot
+  // Convert cells to bytes for allot.
   OP(CELLS)
 #if 1
     tos *= sizeof(cell_t);
@@ -523,39 +519,39 @@ DISPATCH:
 #endif
 
   // >r ( x -- rp: x )
-  // Push data to return stack
+  // Push data to return stack.
   OP(TO_R)
     *++rp = (code_t*) tos;
     tos = *sp--;
   NEXT();
 
   // r> ( rp: x -- x )
-  // Pop data from return stack
+  // Pop data from return stack.
   OP(R_FROM)
     *++sp = tos;
     tos = (cell_t) *rp--;
   NEXT();
 
   // i ( -- i )
-  // Current loop index
+  // Current loop index.
   OP(I)
 
   // r@ ( rp: x -- x, rp: x )
-  // Copy data from top of return stack
+  // Copy data from top of return stack.
   OP(R_FETCH)
     *++sp = tos;
     tos = (cell_t) *rp;
   NEXT();
 
   // sp ( -- addr )
-  // Push stack pointer
+  // Push stack pointer.
   OP(SP)
     *++sp = tos;
     tos = (cell_t) sp;
   NEXT();
 
   // depth ( x1..xn -- x1..xn n )
-  // Push depth of data stack
+  // Push depth of data stack.
   OP(DEPTH)
     tmp = (sp - task.m_sp0);
     *++sp = tos;
@@ -563,13 +559,13 @@ DISPATCH:
   NEXT();
 
   // drop ( x -- )
-  // Drop top of stack
+  // Drop top of stack.
   OP(DROP)
     tos = *sp--;
   NEXT();
 
   // nip ( x y -- y )
-  // Drop next of stack
+  // Drop next of stack.
   OP(NIP)
 #if 1
     sp -= 1;
@@ -585,19 +581,19 @@ DISPATCH:
 #endif
 
   // empty ( xn...x0 -- )
-  // Empty data stack
+  // Empty data stack.
   OP(EMPTY)
     sp = task.m_sp0;
   NEXT();
 
   // dup ( x -- x x )
-  // Duplicate top of stack
+  // Duplicate top of stack.
   OP(DUP)
 #if 1
     *++sp = tos;
   NEXT();
 #else
-  // : dup ( x x -- x x ) param: 0  ;
+  // : dup ( x -- x x ) param: 0  ;
   static const code_t DUP_CODE[] PROGMEM = {
     FVM_OP(PARAM), 0,
     FVM_OP(EXIT)
@@ -606,7 +602,7 @@ DISPATCH:
 #endif
 
   // ?dup ( x -- x x | 0 -- 0 )
-  // Duplicate non zero top of stack
+  // Duplicate non zero top of stack.
   OP(QUESTION_DUP)
 #if 0
     if (tos != 0) *++sp = tos;
@@ -623,7 +619,7 @@ DISPATCH:
 #endif
 
   // over ( x y -- x y x )
-  // Duplicate next top of stack
+  // Duplicate next top of stack.
   OP(OVER)
 #if 1
     tmp = *sp;
@@ -640,7 +636,7 @@ DISPATCH:
 #endif
 
   // tuck ( x y -- y x y )
-  // Duplicate top of stack and rotate
+  // Duplicate top of stack and rotate.
   OP(TUCK)
 #if 0
     tmp = *sp;
@@ -657,14 +653,14 @@ DISPATCH:
   CALL(TUCK_CODE);
 #endif
 
-  // pick ( x0..xn n -- x0..xn x0 )
-  // Duplicate index stack element to top of stack
+  // pick ( xn..x0 i -- xn..x0 xi )
+  // Duplicate index stack element to top of stack.
   OP(PICK)
     tos = *(sp - tos);
   NEXT();
 
   // swap ( x y -- y x )
-  // Swap top two stack elements
+  // Swap top two stack elements.
   OP(SWAP)
 #if 1
     tmp = tos;
@@ -682,7 +678,7 @@ DISPATCH:
 #endif
 
   // rot ( x y z -- y z x )
-  // Rotate up top three stack elements
+  // Rotate up top three stack elements.
   OP(ROT)
 #if 1
     tmp = tos;
@@ -701,7 +697,7 @@ DISPATCH:
 #endif
 
   // -rot ( x y z -- z x y )
-  // Rotate down top three stack elements
+  // Rotate down top three stack elements.
   OP(MINUS_ROT)
 #if 0
     tmp = tos;
@@ -719,8 +715,8 @@ DISPATCH:
   CALL(MINUS_ROT_CODE);
 #endif
 
-  // roll ( x0..xn n -- x1..xn x0 )
-  // Rotate up stack elements
+  // roll ( xn..x0 n -- xn-1..x0 xn )
+  // Rotate up stack elements.
   OP(ROLL)
     tmp = tos;
     tos = sp[-tmp];
@@ -730,7 +726,7 @@ DISPATCH:
   NEXT();
 
   // : 2swap ( x1 x2 y1 y2 -- y1 y2 x1 x2 ) rot >r rot r> ;
-  // Swap two double stack elements
+  // Swap two double stack elements.
   OP(TWO_SWAP)
   static const code_t TWO_SWAP_CODE[] PROGMEM = {
     FVM_OP(ROT),
@@ -742,7 +738,7 @@ DISPATCH:
   CALL(TWO_SWAP_CODE);
 
   // : 2dup ( x1 x2 -- x1 x2 x1 x2) over over ;
-  // Duplicate double stack elements
+  // Duplicate double stack elements.
   OP(TWO_DUP)
   static const code_t TWO_DUP_CODE[] PROGMEM = {
     FVM_OP(OVER),
@@ -752,7 +748,7 @@ DISPATCH:
   CALL(TWO_DUP_CODE);
 
   // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) param: 3 param: 3 ;
-  // Duplicate double next top of stack
+  // Duplicate double next top of stack.
   OP(TWO_OVER)
   static const code_t TWO_OVER_CODE[] PROGMEM = {
     FVM_OP(PARAM), 3,
@@ -762,7 +758,7 @@ DISPATCH:
   CALL(TWO_OVER_CODE);
 
   // : 2drop ( x1 x2 -- ) drop drop ;
-  // Drop double top of stack
+  // Drop double top of stack.
   OP(TWO_DROP)
   static const code_t TWO_DROP_CODE[] PROGMEM = {
     FVM_OP(DROP),
@@ -772,81 +768,81 @@ DISPATCH:
   CALL(TWO_DROP_CODE);
 
   // cell ( -- n )
-  // Size of data element in bytes
+  // Size of data element in bytes.
   OP(CELL)
     *++sp = tos;
     tos = sizeof(cell_t);
   NEXT();
 
   // -2 ( -- -2 )
-  // Constant -2
+  // Constant -2.
   OP(MINUS_TWO)
     *++sp = tos;
     tos = -2;
   NEXT();
 
   // -1 ( -- -1 )
-  // Constant -1
+  // Constant -1.
   OP(MINUS_ONE)
 
   // TRUE ( -- -1 )
-  // Constant true (alias -1)
+  // Constant true (alias -1).
   OP(TRUE)
     *++sp = tos;
     tos = -1;
   NEXT();
 
   // 0 ( -- 0 )
-  // Constant 0
+  // Constant 0.
   OP(ZERO)
 
   // FALSE ( -- 0 )
-  // Constant false
+  // Constant false.
   OP(FALSE)
     *++sp = tos;
     tos = 0;
   NEXT();
 
   // 1 ( -- 1 )
-  // Constant 1
+  // Constant 1.
   OP(ONE)
     *++sp = tos;
     tos = 1;
   NEXT();
 
   // 2 ( -- 2 )
-  // Constant 2
+  // Constant 2.
   OP(TWO)
     *++sp = tos;
     tos = 2;
   NEXT();
 
   // invert ( x -- ~x )
-  // Bitwise complement top of stack
+  // Bitwise complement top of stack.
   OP(INVERT)
     tos = ~tos;
   NEXT();
 
   // and ( x y -- x&y )
-  // Bitwise AND top of stack
+  // Bitwise AND top of stack.
   OP(AND)
     tos = *sp-- & tos;
   NEXT();
 
   // or ( x y -- x|y )
-  // Bitwise OR top of stack
+  // Bitwise OR top of stack.
   OP(OR)
     tos = *sp-- | tos;
   NEXT();
 
   // xor ( x y -- x^y )
-  // Bitwise XOR top of stack
+  // Bitwise XOR top of stack.
   OP(XOR)
     tos = *sp-- ^ tos;
   NEXT();
 
   // negate ( x -- -x )
-  // Negate top of stack
+  // Negate top of stack.
   OP(NEGATE)
 #if 1
     tos = -tos;
@@ -862,80 +858,80 @@ DISPATCH:
 #endif
 
   // 1+ ( x -- x+1 )
-  // Increment top of stack
+  // Increment top of stack.
   OP(ONE_PLUS)
     tos += 1;
   NEXT();
 
   // 1- ( x -- x-1 )
-  // Decrement top of stack
+  // Decrement top of stack.
   OP(ONE_MINUS)
     tos -= 1;
   NEXT();
 
   // 2+ ( x -- x+2 )
-  // Increment top of stack by two
+  // Increment top of stack by two.
   OP(TWO_PLUS)
     tos += 2;
   NEXT();
 
   // 2- ( x -- x-2 )
-  // Decrement top of stack by two
+  // Decrement top of stack by two.
   OP(TWO_MINUS)
     tos -= 2;
   NEXT();
 
   // 2* ( x -- x*2 )
-  // Multiply top of stack by two
+  // Multiply top of stack by two.
   OP(TWO_STAR)
     tos <<= 1;
   NEXT();
 
   // 2/ ( x -- x*2 )
-  // Divide top of stack by two
+  // Divide top of stack by two.
   OP(TWO_SLASH)
     tos >>= 1;
   NEXT();
 
   // + ( x y -- x+y )
-  // Add two top of stack elements
+  // Add two top of stack elements.
   OP(PLUS)
     tos = *sp-- + tos;
   NEXT();
 
   // - ( x y -- x-y )
-  // Subtract two top of stack elements
+  // Subtract two top of stack elements.
   OP(MINUS)
     tos = *sp-- - tos;
   NEXT();
 
   // * ( x y -- x*y )
-  // Multiply two top of stack elements
+  // Multiply two top of stack elements.
   OP(STAR)
     tos = *sp-- * tos;
   NEXT();
 
   // */ ( x y z -- x*y/z )
-  // Multiply and divide top of stack elements
+  // Multiply and divide top of stack elements.
   OP(STAR_SLASH)
     tmp = *sp--;
     tos = (((cell2_t) tmp) * (*sp--)) / tos;
   NEXT();
 
   // / ( x y -- x/y )
-  // Divide two top of stack elements
+  // Divide two top of stack elements.
   OP(SLASH)
     tos = *sp-- / tos;
   NEXT();
 
   // mod ( x y -- x%y )
-  // Remainder after division of two top of stack elements
+  // Remainder after division of two top of stack elements.
   OP(MOD)
     tos = *sp-- % tos;
   NEXT();
 
   // /mod ( x y -- x/y x%y )
-  // Divide two top of stack elements
+  // Divide two top of stack elements.
   OP(SLASH_MOD)
     tmp = *sp / tos;
     tos = *sp % tos;
@@ -943,19 +939,19 @@ DISPATCH:
   NEXT();
 
   // lshift ( x n -- x<<n )
-  // Logical shift left given number of positions
+  // Logical shift left given number of positions.
   OP(LSHIFT)
     tos = *sp-- << tos;
   NEXT();
 
   // rshift ( x n -- x>>n )
-  // Logical shift right given number of positions
+  // Logical shift right given number of positions.
   OP(RSHIFT)
     tos = *sp-- >> tos;
   NEXT();
 
   // within ( x low high -- flag )
-  // Check if value is within boundary
+  // Check if value is within boundary.
   OP(WITHIN)
 #if 0
     tmp = *sp--;
@@ -980,7 +976,7 @@ DISPATCH:
 #endif
 
   // abs ( x -- |x| )
-  // Absolute value of top of stack
+  // Absolute value of top of stack.
   OP(ABS)
 #if 0
     if (tos < 0) tos = -tos;
@@ -1010,7 +1006,7 @@ DISPATCH:
 #endif
 
   // min ( x y -- min(x,y) )
-  // Minimum value of top two stack elements
+  // Minimum value of top two stack elements.
   OP(MIN)
 #if 0
     tmp = *sp--;
@@ -1042,7 +1038,7 @@ DISPATCH:
 #endif
 
   // max ( x y -- max(x,y))
-  // Maximum value of top two stack elements
+  // Maximum value of top two stack elements.
   OP(MAX)
 #if 0
     tmp = *sp--;
@@ -1075,11 +1071,11 @@ DISPATCH:
 #endif
 
   // bool ( x<>0: x -- TRUE, else FALSE )
-  // Convert top of stack to boolean (alias 0<>)
+  // Convert top of stack to boolean (alias 0<>).
   OP(BOOL)
 
   // 0<> ( x<>0: x -- -1, else 0 )
-  // Top of stack not equal zero
+  // Top of stack not equal zero.
   OP(ZERO_NOT_EQUALS)
 #if 1
     tos = (tos != 0) ? -1 : 0;
@@ -1095,7 +1091,7 @@ DISPATCH:
 #endif
 
   // 0< ( x<0: x -- -1, else 0 )
-  // Top of stack less than zero
+  // Top of stack less than zero.
   OP(ZERO_LESS)
 #if 1
     tos = (tos < 0) ? -1 : 0;
@@ -1111,23 +1107,23 @@ DISPATCH:
 #endif
 
   // not ( x==0: x -- -1, else 0 )
-  // Convert top of stack to invert boolean (alias 0=)
+  // Convert top of stack to invert boolean (alias 0=).
   OP(NOT)
 
   // 0= ( x==0: x -- -1, else 0 )
-  // Top of stack less equal zero
+  // Top of stack less equal zero.
   OP(ZERO_EQUALS)
     tos = (tos == 0) ? -1 : 0;
   NEXT();
 
   // 0> ( x>0: x -- -1, else 0 )
-  // Top of stack less greater than zero
+  // Top of stack less greater than zero.
   OP(ZERO_GREATER)
     tos = (tos > 0) ? -1 : 0;
   NEXT();
 
   // <> ( x<>y: x y -- -1, else 0 )
-  // Top two stack elements are not equal
+  // Top two stack elements are not equal.
   OP(NOT_EQUALS)
 #if 0
     tos = (*sp-- != tos) ? -1 : 0;
@@ -1143,7 +1139,7 @@ DISPATCH:
 #endif
 
   // < ( x<y: x y -- -1, else 0 )
-  // Second element is less than top element
+  // Second element is less than top element.
   OP(LESS)
 #if 0
     tos = (*sp-- < tos) ? -1 : 0;
@@ -1175,7 +1171,7 @@ DISPATCH:
 #endif
 
   // > ( x>y: x y -- -1, else 0 )
-  // Second element is greater than top element
+  // Second element is greater than top element.
   OP(GREATER)
 #if 0
     tos = (*sp-- > tos) ? -1 : 0;
@@ -1191,13 +1187,13 @@ DISPATCH:
 #endif
 
   // u< ( x<y: x y -- -1, else 0 )
-  // Second element is unsigned less than top element
+  // Second element is unsigned less than top element.
   OP(U_LESS)
     tos = ((ucell_t) *sp-- < (ucell_t) tos) ? -1 : 0;
   NEXT();
 
   // lookup ( str -- n )
-  // Lookup string in dictionary
+  // Lookup string in dictionary.
   OP(LOOKUP)
     tos = lookup((const char*) tos);
   NEXT();
@@ -1210,7 +1206,7 @@ DISPATCH:
   NEXT();
 
   // words ( -- )
-  // Print list of operations/functions
+  // Print list of operations/functions.
   OP(WORDS)
 #if 0
   {
@@ -1238,39 +1234,50 @@ DISPATCH:
   }
   NEXT();
 #else
-  // NOTE: Forth implementation only lists words in kernel dictionary.
-  // Application words are currently not listed.
   // : words ( -- )
-  //   0
-  //   begin
-  //     dup .name ?dup
-  //   while
-  //     16 swap - spaces
-  //     1+ dup 5 mod not
-  //     if cr then
-  //   repeat
-  //   cr drop ;
+  //   0 begin
+  //     begin
+  //       dup .name ?dup
+  //     while
+  //       >r 1+ dup 5 mod
+  //       if 16 r> - spaces
+  //       else cr r> drop
+  //       then
+  //     repeat
+  //     cr
+  //     255 > if exit then
+  //     256
+  //   again ;
   static const code_t WORDS_CODE[] PROGMEM = {
     FVM_OP(ZERO),
       FVM_OP(DUP),
       FVM_OP(DOT_NAME),
       FVM_OP(QUESTION_DUP),
-    FVM_OP(ZERO_BRANCH), 17,
-      FVM_CLIT(16),
-      FVM_OP(SWAP),
-      FVM_OP(MINUS),
-      FVM_OP(SPACES),
+    FVM_OP(ZERO_BRANCH), 21,
+      FVM_OP(TO_R),
       FVM_OP(ONE_PLUS),
       FVM_OP(DUP),
       FVM_CLIT(5),
       FVM_OP(MOD),
-      FVM_OP(NOT),
-      FVM_OP(ZERO_BRANCH), -17,
+      FVM_OP(ZERO_BRANCH), 8,
+        FVM_CLIT(16),
+        FVM_OP(R_FROM),
+        FVM_OP(MINUS),
+        FVM_OP(SPACES),
+      FVM_OP(BRANCH), -19,
         FVM_OP(CR),
-    FVM_OP(BRANCH), -20,
+        FVM_OP(R_FROM),
+        FVM_OP(DROP),
+    FVM_OP(BRANCH), -24,
     FVM_OP(CR),
-    FVM_OP(DROP),
-    FVM_OP(EXIT)
+    FVM_LIT(255),
+    FVM_OP(GREATER),
+    FVM_OP(ZERO_BRANCH), 2,
+      FVM_OP(EXIT),
+    FVM_CLIT(16),
+    FVM_OP(SPACES),
+    FVM_LIT(256),
+    FVM_OP(BRANCH), -40
   };
   CALL(WORDS_CODE);
 #endif
@@ -1338,19 +1345,18 @@ DISPATCH:
       FVM_OP(MINUS_EXIT),
       FVM_OP(YIELD),
     FVM_OP(BRANCH), -5,
-    FVM_OP(EXIT)
   };
   CALL(KEY_CODE);
 
   // emit ( c -- )
-  // Print character
+  // Print character.
   OP(EMIT)
     ios.print((char) tos);
     tos = *sp--;
   NEXT();
 
   // cr ( -- )
-  // Print new-line
+  // Print new-line.
   OP(CR)
 #if 1
     ios.println();
@@ -1366,7 +1372,7 @@ DISPATCH:
 #endif
 
   // space ( -- )
-  // Print space
+  // Print space.
   OP(SPACE)
 #if 1
     ios.print(' ');
@@ -1382,7 +1388,7 @@ DISPATCH:
 #endif
 
   // spaces ( n -- )
-  // Print spaces
+  // Print spaces.
   OP(SPACES)
 #if 0
     while (tos--) ios.print(' ');
@@ -1396,7 +1402,6 @@ DISPATCH:
       FVM_OP(SPACE),
       FVM_OP(ONE_MINUS),
     FVM_OP(BRANCH), -5,
-    FVM_OP(EXIT)
   };
   CALL(SPACES_CODE);
 #endif
@@ -1439,7 +1444,7 @@ DISPATCH:
 #endif
 
   // .s ( -- )
-  // Print stack contents
+  // Print stack contents.
   OP(DOT_S)
 #if 0
     tmp = (sp - task.m_sp0);
@@ -1486,20 +1491,20 @@ DISPATCH:
 #endif
 
   // ." string" ( -- )
-  // Print program memory string
+  // Print program memory string.
   OP(DOT_QUOTE)
     ip += ios.print((const __FlashStringHelper*) ip) + 1;
   NEXT();
 
   // type ( addr -- )
-  // Print string
+  // Print string.
   OP(TYPE)
     ios.print((const char*) tos);
     tos = *sp--;
   NEXT();
 
   // .name ( x -- length )
-  // Print operation/function name
+  // Print operation/function name.
   OP(DOT_NAME)
   {
     const __FlashStringHelper* s = NULL;
@@ -1512,7 +1517,7 @@ DISPATCH:
   NEXT();
 
   // ? ( addr -- ) @ . ;
-  // Print value of variable
+  // Print value of variable.
   OP(QUESTION)
   static const code_t QUESTION_CODE[] PROGMEM = {
     FVM_OP(FETCH),
@@ -1522,7 +1527,7 @@ DISPATCH:
   CALL(QUESTION_CODE);
 
   // delay ( ms -- )
-  // Yield while waiting given number of milli-seconds
+  // Yield while waiting given number of milli-seconds.
   OP(DELAY)
   // : delay ( ms -- )
   //   millis >r
@@ -1550,89 +1555,89 @@ DISPATCH:
   CALL(DELAY_CODE);
 
   // micros ( -- us )
-  // Micro-seconds
+  // Micro-seconds.
   OP(MICROS)
     *++sp = tos;
     tos = micros();
   NEXT();
 
   // millis ( -- ms )
-  // Milli-seconds
+  // Milli-seconds.
   OP(MILLIS)
     *++sp = tos;
     tos = millis();
   NEXT();
 
   // pinmode ( mode pin -- )
-  // Set digital pin mode
+  // Set digital pin mode.
   OP(PINMODE)
     pinMode(tos, *sp--);
     tos = *sp--;
   NEXT();
 
   // digitalread ( pin -- state )
-  // Read digital pin
+  // Read digital pin.
   OP(DIGITALREAD)
     tos = digitalRead(tos);
   NEXT();
 
   // digitalwrite ( state pin -- )
-  // Write digital pin
+  // Write digital pin.
   OP(DIGITALWRITE)
     digitalWrite(tos, *sp--);
     tos = *sp--;
   NEXT();
 
   // digitaltoggle ( pin -- )
-  // Toggle digital pin
+  // Toggle digital pin.
   OP(DIGITALTOGGLE)
     digitalWrite(tos, !digitalRead(tos));
     tos = *sp--;
   NEXT();
 
   // analogread ( pin -- sample )
-  // Read analog pin
+  // Read analog pin.
   OP(ANALOGREAD)
     tos = analogRead(tos & 0xf);
   NEXT();
 
   // analogwrite ( n pin -- )
-  // Write pwm pin
+  // Write pwm pin.
   OP(ANALOGWRITE)
     analogWrite(tos, *sp--);
     tos = *sp--;
   NEXT();
 
   // halt ( -- )
-  // Halt virtual machine and save context
+  // Halt virtual machine and save context.
   OP(HALT)
     rp = task.m_rp0;
     ip -= 1;
 
   // yield ( -- )
-  // Yield virtual machine and save context
+  // Yield virtual machine and save context.
   OP(YIELD)
     *++sp = tos;
+    *++rp = ip;
     task.m_sp = sp;
-    task.m_ip = ip;
     task.m_rp = rp;
   return (ir == OP_YIELD);
 
   // tail ( -- )
-  // Tail call function
+  // Tail call function.
   OP(TAIL)
     ir = FETCH(ip++);
     ip = FNTAB(ir);
   NEXT();
 
   // fncall ( -- )
-  // Call internal function (pointer in tp)
+  // Internal function call.
   FNCALL:
     *++rp = ip;
     ip = tp;
 
   // noop ( -- )
-  // No operation
+  // No operation.
   OP(NOOP)
   NEXT();
 
