@@ -71,8 +71,8 @@ void setup()
   while (!Serial);
 
 #if defined(USE_TRACE)
-  task1.trace(1);
-  task2.trace(1);
+  task1.trace(true);
+  task2.trace(true);
 #endif
 
   // 500 13 blink

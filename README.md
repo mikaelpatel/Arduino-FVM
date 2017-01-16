@@ -19,9 +19,9 @@ set and dictionary format. The token compiler is also an excellent
 example of mixing forth, C/C++ and Arduino library functions in the
 same sketch.
 
-The Forth Virtual Machine (FVM) with 128 instructions is approx. 3.7
+The Forth Virtual Machine (FVM) with 130 instructions is approx. 4.5
 Kbyte without kernel dictionary table and strings. This adds approx. 1
-Kbyte. The instruction level trace adds an additional 1 Kbyte. Many of
+Kbyte. The instruction level trace adds an additional 500 bytes. Many of
 the kernel instructions are defined in both C++ and FVM
 instructions. This allows tailoring for speed and/or size.
 

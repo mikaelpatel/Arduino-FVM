@@ -61,14 +61,15 @@ const int PAD_MAX = 32;
 char pad[PAD_MAX];
 FVM_VARIABLE(6, PAD, pad);
 
-void numbers(FVM::task_t &task)
+void numbers(FVM::task_t &task, void* env)
 {
   task.push(1);
   task.push(2);
   task.push(3);
+  task.push((FVM::cell_t) env);
   task.push(task.depth());
 }
-FVM_FUNCTION(7, NUMBERS, numbers);
+FVM_FUNCTION(7, NUMBERS, numbers, pad);
 
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) ARRAY_CODE,

@@ -25,8 +25,11 @@
  * performance.
  *
  * @section Measurements
- * Halt: 6.9 us, 11.5, 15.0 us/trace mode
- * Yield/branch: 9.4 us, 18.6, 22.4 us
+ * Context switch time to and from the virtual machine
+ * measured in microseconds for each trace mode (0, 1, 2).
+ *
+ * Halt: 8 us, 11, 15 us
+ * Yield/branch: 10 us, 18, 23 us
  *
  * @section Environment
  * Arduino Uno/IDE 1.8.1

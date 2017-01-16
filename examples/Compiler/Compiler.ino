@@ -312,7 +312,6 @@ const str_P FVM::fnstr[] PROGMEM = {
 const int DATA_MAX = 1024;
 uint8_t data[DATA_MAX];
 bool compiling = false;
-uint8_t* latest = data;
 
 // Forth virtual machine and task
 FVM fvm(data);
@@ -337,34 +336,26 @@ void loop()
 
   // Check for function call or literal value (word not found)
   if (op < 0) {
-    if ((op = lookup(buffer)) < 0 && compiling) {
-      fvm.compile(op);
+    char* endptr;
+    int value = strtol(buffer, &endptr, task.m_base);
+    if (*endptr != 0) {
+      Serial.print(buffer);
+      Serial.println(F(" ??"));
+      compiling = false;
     }
-    else {
-      char* endptr;
-      int value = strtol(buffer, &endptr, task.m_base);
-      if (*endptr != 0) {
-	Serial.print(buffer);
-	Serial.println(F(" ??"));
-	fvm.dp(latest);
-	compiling = false;
+    else if (compiling) {
+      if (value < INT8_MIN || value > INT8_MAX) {
+	fvm.compile(FVM::OP_LIT);
+	fvm.compile(value);
+	fvm.compile(value >> 8);
       }
       else {
-	if (compiling) {
-	  if (value < INT8_MIN || value > INT8_MAX) {
-	    fvm.compile(FVM::OP_LIT);
-	    fvm.compile(value);
-	    fvm.compile(value >> 8);
-	  }
-	  else {
-	    fvm.compile(FVM::OP_CLIT);
-	    fvm.compile(value);
-	  }
-	}
-	else {
-	  task.push(value);
-	}
+	fvm.compile(FVM::OP_CLIT);
+	fvm.compile(value);
       }
+    }
+    else {
+      task.push(value);
     }
   }
 
@@ -397,8 +388,7 @@ void loop()
       fvm.compile(FVM::OP_VAR);
       fvm.compile((FVM::code_t) 0);
       fvm.compile((FVM::code_t) 0);
-      *latest = fvm.dp() - latest;
-      latest = fvm.dp();
+      fvm.link();
       break;
     case CONSTANT:
       val = task.pop();
@@ -408,8 +398,7 @@ void loop()
       fvm.compile(FVM::OP_CONST);
       fvm.compile(val);
       fvm.compile(val >> 8);
-      *latest = fvm.dp() - latest;
-      latest = fvm.dp();
+      fvm.link();
       break;
     case ROOM:
       task.push(DATA_MAX - (fvm.dp() - data));
@@ -419,9 +408,7 @@ void loop()
       break;
     case GENERATE_CODE:
       codegen(Serial);
-      fvm.dp(data);
-      latest = data;
-      *latest = 0;
+      fvm.forget();
       break;
     default:
       Serial.print(buffer);
@@ -444,16 +431,18 @@ void loop()
       break;
     case SEMICOLON:
       fvm.compile(FVM::OP_EXIT);
-      *latest = fvm.dp() - latest;
-      latest = fvm.dp();
+      fvm.link();
       compiling = false;
       break;
     default:
       if (op < SEMICOLON)
 	fvm.execute(op, task);
-      else {
+      else if (op < FVM::FUNC_MAX) {
 	Serial.print(buffer);
 	Serial.println(F(" ??"));
+      }
+      else {
+	fvm.compile(FVM::FUNC_MAX - op - 1);
       }
     }
   }
@@ -462,33 +451,21 @@ void loop()
   if (c == '\n' && !compiling) Serial.println(F(" ok"));
 }
 
-int lookup(const char* s)
-{
-  int op = -1;
-  uint8_t* dp = data;
-  while (1) {
-    if (!strcmp(s, (const char*) dp + 1)) return (op);
-    uint8_t offset = *dp;
-    if (offset == 0) return (0);
-    dp += offset;
-    op -= 1;
-  }
-}
-
 void words(Stream& ios)
 {
   uint8_t* dp = data;
   int nr = 0;
   while (dp < fvm.dp()) {
-    ios.print(nr++);
-    ios.print(':');
-    ios.print(dp - data);
-    ios.print(':');
-    ios.print(*dp);
-    ios.print(':');
-    ios.println((const char*) dp + 1);
-    dp += (uint8_t) *dp;
+    const char* s = (const char*) dp + 1;
+    int len = ios.print(s);
+    if (++nr % 5 == 0)
+      ios.println();
+    else {
+      for (;len < 16; len++) ios.print(' ');
+    }
+    dp += *dp;
   }
+  ios.println();
 }
 
 void codegen(Stream& ios)
@@ -513,7 +490,7 @@ void codegen(Stream& ios)
     dp += n;
     switch (*dp) {
     case FVM::OP_VAR:
-      ios.print(F("FVM::data_t " PREFIX));
+      ios.print(F("FVM::cell_t " PREFIX));
       ios.print(nr);
       ios.println(';');
       ios.print(F("const FVM::var_t " PREFIX));

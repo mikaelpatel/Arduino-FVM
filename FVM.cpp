@@ -26,7 +26,7 @@
 /**
  * Enable symbolic trace of virtual machine instruction cycle.
  * 0: No trace.
- * 1: Print indentated operation code and stack contents.
+ * 1: Print indented operation code and stack contents.
  * 2: Print execute time, instruction pointer, return stack depth,
  * operation code and stack contents.
  */
@@ -52,11 +52,22 @@ int FVM::lookup(const char* name)
 {
   const char* s;
 
-  // Search sketch dictionary, return index
+  // Search dynamic sketch dictionary, return index
+  if (m_dp0 != NULL) {
+    uint8_t* dp = m_dp0;
+    uint8_t offset;
+    for (int i = 0; (offset = *dp) != 0; i++) {
+      s = (const char*) dp + 1;
+      if (!strcmp(name, s)) return (i + FVM::FUNC_MAX);
+      dp += offset;
+    }
+  }
+
+  // Search static sketch dictionary, return index
   for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i + FVM::KERNEL_MAX);
 
-  // Search kernel dictionary, return index
+  // Search static kernel dictionary, return index
   for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
 
@@ -105,9 +116,9 @@ int FVM::resume(task_t& task)
 
  INNER:
   // Positive opcode (0..127) are direct operation codes. Negative
-  // opcodes (-1..-128) are negative index (plus one) in function
+  // opcodes (-1..-128) are negative index (plus one) in threaded code
   // table. Direct operation codes may be implemented as a primitive
-  // or as an internal function call.
+  // or as an internal threaded code call.
 #if (FVM_TRACE == 0)
 
   while ((ir = FETCH(ip++)) < 0) {
@@ -117,7 +128,7 @@ int FVM::resume(task_t& task)
 
 #else
   // Trace execution; micro-seconds, instruction pointer,
-  // return stack depth, instruction/function, and stack contents
+  // return stack depth, token, and stack contents
   do {
     if (task.m_trace) {
 #if (FVM_TRACE == 2)
@@ -141,8 +152,8 @@ int FVM::resume(task_t& task)
       while (depth--) ios.print(' ');
 #endif
     }
-    // Fetch next instruction and check for function call or primitive
-    // Print name of function or primitive
+    // Fetch next instruction and check for threaded call or primitive
+    // Print name or token
     ir = FETCH(ip++);
     if (ir < 0 ) {
       *++rp = ip;
@@ -186,13 +197,13 @@ int FVM::resume(task_t& task)
   } while (ir < 0);
 #endif
 
-  // Dispatch instruction; primitive or internal function call
+  // Dispatch instruction; primitive or internal threaded code call
 DISPATCH:
   switch ((uint8_t) ir) {
 
-  // -exit ( flag -- )
+  // 0exit ( flag -- )
   // Exit from call if zero/false.
-  OP(MINUS_EXIT)
+  OP(ZERO_EXIT)
     tmp = tos;
     tos = *sp--;
     if (tmp != 0) NEXT();
@@ -230,15 +241,16 @@ DISPATCH:
     ip = *rp--;
   NEXT();
 
-  // (func) ( -- )
-  // Call function wrapper.
+  // (func) ( xn..x0 -- ym..y0 )
+  // Call extension function wrapper.
   OP(FUNC)
   {
+    void* env = (void*) WFETCH(ip + sizeof(fn_t));
     fn_t fn = (fn_t) WFETCH(ip);
     *++sp = tos;
     task.m_sp = sp;
     task.m_rp = rp;
-    fn(task);
+    fn(task, env);
     rp = task.m_rp;
     sp = task.m_sp;
     tos = *sp--;
@@ -341,20 +353,8 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 
-  // (compile) ( -- )
-  // Add inline operation/function.
-  OP(COMPILE)
-    *m_dp++ = FETCH(ip++);
-  NEXT();
-
-  // (trap) ( -- )
-  // Extended operation/function call.
-  OP(TRAP)
-    ir = FETCH(ip++);
-  goto DISPATCH;
-
-  // execute ( n -- )
-  // Execute primitive or function (as returned by lookup).
+  // execute ( token -- )
+  // Execute primitive or threaded code (as token returned by lookup).
   OP(EXECUTE)
     if (tos < KERNEL_MAX) {
       ir = tos;
@@ -366,6 +366,42 @@ DISPATCH:
       ip = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
       tos = *sp--;
     }
+  NEXT();
+
+  // tail ( -- )
+  // Tail call to threaded code.
+  OP(TAIL)
+    ir = FETCH(ip++);
+    ip = FNTAB(ir);
+  NEXT();
+
+  // halt ( -- )
+  // Halt virtual machine and save context.
+  OP(HALT)
+    rp = task.m_rp0;
+    ip -= 1;
+
+  // yield ( -- )
+  // Yield virtual machine and save context.
+  OP(YIELD)
+    *++sp = tos;
+    *++rp = ip;
+    task.m_sp = sp;
+    task.m_rp = rp;
+  return (ir == OP_YIELD);
+
+  // kernel ( -- )
+  // Call inline kernel token.
+  OP(KERNEL)
+    ir = FETCH(ip++);
+  goto DISPATCH;
+
+  // call ( -- )
+  // Call application token.
+  OP(CALL)
+    ir = FETCH(ip++);
+    *++rp = ip;
+    ip = (code_P) pgm_read_word(fntab+(ir-KERNEL_MAX));
   NEXT();
 
   // trace ( x -- )
@@ -502,21 +538,11 @@ DISPATCH:
   CALL(C_COMMA_CODE);
 #endif
 
-  // cells ( x -- y )
-  // Convert cells to bytes for allot.
-  OP(CELLS)
-#if 1
-    tos *= sizeof(cell_t);
+  // (compile) ( -- )
+  // Add inline token to compile stream.
+  OP(COMPILE)
+    *m_dp++ = FETCH(ip++);
   NEXT();
-#else
-  // : cells ( x -- y ) cell * ;
-  static const code_t CELLS_CODE[] PROGMEM = {
-    FVM_OP(CELL),
-    FVM_OP(STAR),
-    FVM_OP(EXIT)
-  };
-  CALL(CELLS_CODE);
-#endif
 
   // >r ( x -- rp: x )
   // Push data to return stack.
@@ -611,7 +637,7 @@ DISPATCH:
   // : ?dup ( x -- x x | 0 -- 0 ) dup -exit dup ;
   static const code_t QUESTION_DUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
-    FVM_OP(MINUS_EXIT),
+    FVM_OP(ZERO_EXIT),
     FVM_OP(DUP),
     FVM_OP(EXIT)
   };
@@ -767,13 +793,6 @@ DISPATCH:
   };
   CALL(TWO_DROP_CODE);
 
-  // cell ( -- n )
-  // Size of data element in bytes.
-  OP(CELL)
-    *++sp = tos;
-    tos = sizeof(cell_t);
-  NEXT();
-
   // -2 ( -- -2 )
   // Constant -2.
   OP(MINUS_TWO)
@@ -816,6 +835,29 @@ DISPATCH:
     *++sp = tos;
     tos = 2;
   NEXT();
+
+  // cell ( -- n )
+  // Size of data element in bytes.
+  OP(CELL)
+    *++sp = tos;
+    tos = sizeof(cell_t);
+  NEXT();
+
+  // cells ( x -- y )
+  // Convert cells to bytes for allot.
+  OP(CELLS)
+#if 1
+    tos *= sizeof(cell_t);
+  NEXT();
+#else
+  // : cells ( x -- y ) cell * ;
+  static const code_t CELLS_CODE[] PROGMEM = {
+    FVM_OP(CELL),
+    FVM_OP(STAR),
+    FVM_OP(EXIT)
+  };
+  CALL(CELLS_CODE);
+#endif
 
   // invert ( x -- ~x )
   // Bitwise complement top of stack.
@@ -986,7 +1028,7 @@ DISPATCH:
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
-    FVM_OP(MINUS_EXIT),
+    FVM_OP(ZERO_EXIT),
     FVM_OP(NEGATE),
     FVM_OP(EXIT)
   };
@@ -1206,29 +1248,27 @@ DISPATCH:
   NEXT();
 
   // words ( -- )
-  // Print list of operations/functions.
+  // Print words in dictionary.
   OP(WORDS)
 #if 0
   {
     const char* s;
     int len;
-    int j = 0;
+    int nr = 0;
     for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++) {
-      ios.print((const __FlashStringHelper*) s);
-      if (++j % 5 == 0)
+      len = ios.print((const __FlashStringHelper*) s);
+      if (++nr % 5 == 0)
 	ios.println();
       else {
-	len = 16 - strlen_P(s);
-	while (len-- > 0) ios.print(' ');
+	for (;len < 16; len++) ios.print(' ');
       }
     }
     for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++) {
-      ios.print((const __FlashStringHelper*) s);
-      if (++j % 5 == 0)
+      len = ios.print((const __FlashStringHelper*) s);
+      if (++nr % 5 == 0)
 	ios.println();
       else {
-	len = 16 - strlen_P(s);
-	while (len-- > 0) ios.print(' ');
+	for (;len < 16; len++) ios.print(' ');
       }
     }
   }
@@ -1342,7 +1382,7 @@ DISPATCH:
   static const code_t KEY_CODE[] PROGMEM = {
       FVM_OP(QUESTION_KEY),
       FVM_OP(NOT),
-      FVM_OP(MINUS_EXIT),
+      FVM_OP(ZERO_EXIT),
       FVM_OP(YIELD),
     FVM_OP(BRANCH), -5,
   };
@@ -1398,7 +1438,7 @@ DISPATCH:
   // : spaces ( n -- ) begin ?dup -exit space 1- again ;
   static const code_t SPACES_CODE[] PROGMEM = {
       FVM_OP(QUESTION_DUP),
-      FVM_OP(MINUS_EXIT),
+      FVM_OP(ZERO_EXIT),
       FVM_OP(SPACE),
       FVM_OP(ONE_MINUS),
     FVM_OP(BRANCH), -5,
@@ -1503,14 +1543,14 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 
-  // .name ( x -- length )
-  // Print operation/function name.
+  // .name ( token -- length )
+  // Print name of word (token from lookup).
   OP(DOT_NAME)
   {
     const __FlashStringHelper* s = NULL;
     if (tos < KERNEL_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
-    else if (tos < SKETCH_MAX)
+    else if (tos < TOKEN_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-KERNEL_MAX]);
     tos = (s != NULL) ? ios.print(s) : 0;
   }
@@ -1608,30 +1648,8 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 
-  // halt ( -- )
-  // Halt virtual machine and save context.
-  OP(HALT)
-    rp = task.m_rp0;
-    ip -= 1;
-
-  // yield ( -- )
-  // Yield virtual machine and save context.
-  OP(YIELD)
-    *++sp = tos;
-    *++rp = ip;
-    task.m_sp = sp;
-    task.m_rp = rp;
-  return (ir == OP_YIELD);
-
-  // tail ( -- )
-  // Tail call function.
-  OP(TAIL)
-    ir = FETCH(ip++);
-    ip = FNTAB(ir);
-  NEXT();
-
   // fncall ( -- )
-  // Internal function call.
+  // Internal threaded code call.
   FNCALL:
     *++rp = ip;
     ip = tp;
@@ -1649,7 +1667,7 @@ DISPATCH:
 
 int FVM::execute(int op, task_t& task)
 {
-  if (op < 0 || op > SKETCH_MAX) return (-1);
+  if (op < 0 || op > TOKEN_MAX) return (-1);
   static const code_t EXECUTE_CODE[] PROGMEM = {
     FVM_OP(EXECUTE),
     FVM_OP(HALT)
@@ -1681,7 +1699,7 @@ int FVM::interpret(task_t& task)
 
 #if defined(FVM_DICT)
 static const char EXIT_PSTR[] PROGMEM = "exit";
-static const char MINUS_EXIT_PSTR[] PROGMEM = "-exit";
+static const char ZERO_EXIT_PSTR[] PROGMEM = "(0exit)";
 static const char LIT_PSTR[] PROGMEM = "(lit)";
 static const char CLIT_PSTR[] PROGMEM = "(clit)";
 static const char SLIT_PSTR[] PROGMEM = "(slit)";
@@ -1698,10 +1716,15 @@ static const char J_PSTR[] PROGMEM = "j";
 static const char LEAVE_PSTR[] PROGMEM = "leave";
 static const char LOOP_PSTR[] PROGMEM = "(loop)";
 static const char PLUS_LOOP_PSTR[] PROGMEM = "(+loop)";
-static const char COMPILE_PSTR[] PROGMEM = "(compile)";
-static const char TRAP_PSTR[] PROGMEM = "(trap)";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
+static const char TAIL_PSTR[] PROGMEM = "tail";
+static const char YIELD_PSTR[] PROGMEM = "yield";
+static const char HALT_PSTR[] PROGMEM = "halt";
+static const char NOOP_PSTR[] PROGMEM = "noop";
+static const char KERNEL_PSTR[] PROGMEM = "kernel";
+static const char CALL_PSTR[] PROGMEM = "call";
 static const char TRACE_PSTR[] PROGMEM = "trace";
+
 static const char C_FETCH_PSTR[] PROGMEM = "c@";
 static const char C_STORE_PSTR[] PROGMEM = "c!";
 static const char FETCH_PSTR[] PROGMEM = "@";
@@ -1712,10 +1735,12 @@ static const char HERE_PSTR[] PROGMEM = "here";
 static const char ALLOT_PSTR[] PROGMEM = "allot";
 static const char COMMA_PSTR[] PROGMEM = ",";
 static const char C_COMMA_PSTR[] PROGMEM = "c,";
-static const char CELLS_PSTR[] PROGMEM = "cells";
+static const char COMPILE_PSTR[] PROGMEM = "(compile)";
+
 static const char TO_R_PSTR[] PROGMEM = ">r";
 static const char R_FROM_PSTR[] PROGMEM = "r>";
 static const char R_FETCH_PSTR[] PROGMEM = "r@";
+
 static const char SP_PSTR[] PROGMEM = "sp";
 static const char DEPTH_PSTR[] PROGMEM = "depth";
 static const char DROP_PSTR[] PROGMEM = "drop";
@@ -1734,12 +1759,15 @@ static const char TWO_SWAP_PSTR[] PROGMEM = "2swap";
 static const char TWO_DUP_PSTR[] PROGMEM = "2dup";
 static const char TWO_OVER_PSTR[] PROGMEM = "2over";
 static const char TWO_DROP_PSTR[] PROGMEM = "2drop";
-static const char CELL_PSTR[] PROGMEM = "cell";
+
 static const char MINUS_TWO_PSTR[] PROGMEM = "-2";
 static const char MINUS_ONE_PSTR[] PROGMEM = "-1";
 static const char ZERO_PSTR[] PROGMEM = "0";
 static const char ONE_PSTR[] PROGMEM = "1";
 static const char TWO_PSTR[] PROGMEM = "2";
+static const char CELL_PSTR[] PROGMEM = "cell";
+static const char CELLS_PSTR[] PROGMEM = "cells";
+
 static const char BOOL_PSTR[] PROGMEM = "bool";
 static const char NOT_PSTR[] PROGMEM = "not";
 static const char TRUE_PSTR[] PROGMEM = "true";
@@ -1764,6 +1792,13 @@ static const char MOD_PSTR[] PROGMEM = "mod";
 static const char SLASH_MODE_PSTR[] PROGMEM = "/mod";
 static const char LSHIFT_PSTR[] PROGMEM = "lshift";
 static const char RSHIFT_PSTR[] PROGMEM = "rshift";
+
+
+static const char WITHIN_PSTR[] PROGMEM = "within";
+static const char ABS_PSTR[] PROGMEM = "abs";
+static const char MIN_PSTR[] PROGMEM = "min";
+static const char MAX_PSTR[] PROGMEM = "max";
+
 static const char ZERO_NOT_EQUALS_PSTR[] PROGMEM = "0<>";
 static const char ZERO_LESS_PSTR[] PROGMEM = "0<";
 static const char ZERO_EQUALS_PSTR[] PROGMEM = "0=";
@@ -1773,13 +1808,11 @@ static const char LESS_PSTR[] PROGMEM = "<";
 static const char EQUALS_PSTR[] PROGMEM = "=";
 static const char GREATER_PSTR[] PROGMEM = ">";
 static const char U_LESS_PSTR[] PROGMEM = "u<";
-static const char WITHIN_PSTR[] PROGMEM = "within";
-static const char ABS_PSTR[] PROGMEM = "abs";
-static const char MIN_PSTR[] PROGMEM = "min";
-static const char MAX_PSTR[] PROGMEM = "max";
+
 static const char LOOKUP_PSTR[] PROGMEM = "lookup";
 static const char TO_BODY_PSTR[] PROGMEM = ">body";
 static const char WORDS_PSTR[] PROGMEM = "words";
+
 static const char BASE_PSTR[] PROGMEM = "base";
 static const char HEX_PSTR[] PROGMEM = "hex";
 static const char DECIMAL_PSTR[] PROGMEM = "decimal";
@@ -1796,6 +1829,7 @@ static const char DOT_QUOTE_PSTR[] PROGMEM = "(.\")";
 static const char TYPE_PSTR[] PROGMEM = "type";
 static const char DOT_NAME_PSTR[] PROGMEM = ".name";
 static const char QUESTION_PSTR[] PROGMEM = "?";
+
 static const char MICROS_PSTR[] PROGMEM = "micros";
 static const char MILLIS_PSTR[] PROGMEM = "millis";
 static const char DELAY_PSTR[] PROGMEM = "delay";
@@ -1805,16 +1839,12 @@ static const char DIGITALWRITE_PSTR[] PROGMEM = "digitalwrite";
 static const char DIGITALTOGGLE_PSTR[] PROGMEM = "digitaltoggle";
 static const char ANALOGREAD_PSTR[] PROGMEM = "analogread";
 static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
-static const char HALT_PSTR[] PROGMEM = "halt";
-static const char YIELD_PSTR[] PROGMEM = "yield";
-static const char TAIL_PSTR[] PROGMEM = "tail";
-static const char NOOP_PSTR[] PROGMEM = "noop";
 #endif
 
 const str_P FVM::opstr[] PROGMEM = {
 #if defined(FVM_DICT)
   (str_P) EXIT_PSTR,
-  (str_P) MINUS_EXIT_PSTR,
+  (str_P) ZERO_EXIT_PSTR,
   (str_P) LIT_PSTR,
   (str_P) CLIT_PSTR,
   (str_P) SLIT_PSTR,
@@ -1831,10 +1861,15 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LEAVE_PSTR,
   (str_P) LOOP_PSTR,
   (str_P) PLUS_LOOP_PSTR,
-  (str_P) COMPILE_PSTR,
-  (str_P) TRAP_PSTR,
   (str_P) EXECUTE_PSTR,
+  (str_P) TAIL_PSTR,
+  (str_P) HALT_PSTR,
+  (str_P) YIELD_PSTR,
+  (str_P) NOOP_PSTR,
+  (str_P) KERNEL_PSTR,
+  (str_P) CALL_PSTR,
   (str_P) TRACE_PSTR,
+
   (str_P) C_FETCH_PSTR,
   (str_P) C_STORE_PSTR,
   (str_P) FETCH_PSTR,
@@ -1845,10 +1880,12 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) ALLOT_PSTR,
   (str_P) COMMA_PSTR,
   (str_P) C_COMMA_PSTR,
-  (str_P) CELLS_PSTR,
+  (str_P) COMPILE_PSTR,
+
   (str_P) TO_R_PSTR,
   (str_P) R_FROM_PSTR,
   (str_P) R_FETCH_PSTR,
+
   (str_P) SP_PSTR,
   (str_P) DEPTH_PSTR,
   (str_P) DROP_PSTR,
@@ -1867,12 +1904,15 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) TWO_DUP_PSTR,
   (str_P) TWO_OVER_PSTR,
   (str_P) TWO_DROP_PSTR,
-  (str_P) CELL_PSTR,
+
   (str_P) MINUS_TWO_PSTR,
   (str_P) MINUS_ONE_PSTR,
   (str_P) ZERO_PSTR,
   (str_P) ONE_PSTR,
   (str_P) TWO_PSTR,
+  (str_P) CELL_PSTR,
+  (str_P) CELLS_PSTR,
+
   (str_P) BOOL_PSTR,
   (str_P) NOT_PSTR,
   (str_P) TRUE_PSTR,
@@ -1897,10 +1937,12 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) SLASH_MODE_PSTR,
   (str_P) LSHIFT_PSTR,
   (str_P) RSHIFT_PSTR,
+
   (str_P) WITHIN_PSTR,
   (str_P) ABS_PSTR,
   (str_P) MIN_PSTR,
   (str_P) MAX_PSTR,
+
   (str_P) ZERO_NOT_EQUALS_PSTR,
   (str_P) ZERO_LESS_PSTR,
   (str_P) ZERO_EQUALS_PSTR,
@@ -1910,9 +1952,11 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) EQUALS_PSTR,
   (str_P) GREATER_PSTR,
   (str_P) U_LESS_PSTR,
+
   (str_P) LOOKUP_PSTR,
   (str_P) TO_BODY_PSTR,
   (str_P) WORDS_PSTR,
+
   (str_P) BASE_PSTR,
   (str_P) HEX_PSTR,
   (str_P) DECIMAL_PSTR,
@@ -1929,6 +1973,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) TYPE_PSTR,
   (str_P) DOT_NAME_PSTR,
   (str_P) QUESTION_PSTR,
+
   (str_P) MICROS_PSTR,
   (str_P) MILLIS_PSTR,
   (str_P) DELAY_PSTR,
@@ -1938,10 +1983,6 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) DIGITALTOGGLE_PSTR,
   (str_P) ANALOGREAD_PSTR,
   (str_P) ANALOGWRITE_PSTR,
-  (str_P) HALT_PSTR,
-  (str_P) YIELD_PSTR,
-  (str_P) TAIL_PSTR,
-  (str_P) NOOP_PSTR,
 #endif
   0
 };

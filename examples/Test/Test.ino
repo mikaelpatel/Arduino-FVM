@@ -40,35 +40,35 @@ generate-code
 
 const char WORD0_PSTR[] PROGMEM = "test0";
 const FVM::code_t WORD0_CODE[] PROGMEM = {
-  112, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 0, 106, 125, 0
+  117, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 0, 111, 20, 0
 };
 const char WORD1_PSTR[] PROGMEM = "test1";
 const FVM::code_t WORD1_CODE[] PROGMEM = {
-  57, 41, 69, 41, 3, 9, 94, 11, 2, 125, 10, -10, 0
+  60, 45, 74, 45, 3, 9, 99, 11, 2, 20, 10, -10, 0
 };
 const char WORD2_PSTR[] PROGMEM = "test2";
 const FVM::code_t WORD2_CODE[] PROGMEM = {
-  57, 41, 69, 41, 3, 9, 94, 11, -7, 125, 0
+  60, 45, 74, 45, 3, 9, 99, 11, -7, 20, 0
 };
 const char WORD3_PSTR[] PROGMEM = "test3";
 const FVM::code_t WORD3_CODE[] PROGMEM = {
-  57, 41, 3, 9, 93, 11, 5, 41, 69, 10, -9, 125, 0
+  60, 45, 3, 9, 98, 11, 5, 45, 74, 10, -9, 20, 0
 };
 const char WORD4_PSTR[] PROGMEM = "test4";
 const FVM::code_t WORD4_CODE[] PROGMEM = {
-  3, 10, 57, 12, 4, 13, 16, -2, 125, 0
+  3, 10, 60, 12, 4, 13, 16, -2, 20, 0
 };
 const char WORD5_PSTR[] PROGMEM = "test5";
 const FVM::code_t WORD5_CODE[] PROGMEM = {
-  3, 10, 57, 12, 6, 13, 3, 3, 17, -4, 125, 0
+  3, 10, 60, 12, 6, 13, 3, 3, 17, -4, 20, 0
 };
 const char WORD6_PSTR[] PROGMEM = "test6";
 const FVM::code_t WORD6_CODE[] PROGMEM = {
-  3, 10, 57, 12, 11, 13, 13, 3, 5, 94, 11, 2, 15, 16, -9, 125, 0
+  3, 10, 60, 12, 11, 13, 13, 3, 5, 99, 11, 2, 15, 16, -9, 20, 0
 };
 const char WORD7_PSTR[] PROGMEM = "test7";
 const FVM::code_t WORD7_CODE[] PROGMEM = {
-  59, 57, 12, 11, 59, 57, 12, 5, 13, 14, 16, -3, 16, -9, 125, 0
+  62, 60, 12, 11, 62, 60, 12, 5, 13, 14, 16, -3, 16, -9, 20, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
   WORD0_CODE,

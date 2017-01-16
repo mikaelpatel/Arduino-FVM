@@ -28,10 +28,10 @@
  * ------------------------------------------------
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
- *  +86   1960 +Blink sketch code and task
- *  +4254 6214 +Forth Virtual Machine
- *  +896  7110 +Kernel dictionary (128 words)
- *  +486  7596 +Trace mode
+ *  +120  1994 +Blink sketch code and task
+ *  +4504 6498 +Forth Virtual Machine
+ *  +912  7410 +Kernel dictionary (130 words)
+ *  +492  7902 +Trace mode
  *
  * Cycle time: 36, 72, 80 us/trace mode
  *
@@ -76,11 +76,11 @@ const FVM::const_t WORD1_CONST[] PROGMEM = {
 };
 const char WORD2_PSTR[] PROGMEM = "blink";
 const FVM::code_t WORD2_CODE[] PROGMEM = {
-  41, 122, 43, 118, 10, -5, 0
+  45, 127, 47, 123, 10, -5, 0
 };
 const char WORD3_PSTR[] PROGMEM = "sketch";
 const FVM::code_t WORD3_CODE[] PROGMEM = {
-  -1, -2, 119, 2, -12, 1, -2, -3, 125, 0
+  -1, -2, 124, 2, -12, 1, -2, -3, 20, 0
 };
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &WORD0_CONST,

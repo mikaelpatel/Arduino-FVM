@@ -38,7 +38,7 @@ class FVM {
      * Control structure and literals
      */
     OP_EXIT = 0,	 	// Function return
-    OP_MINUS_EXIT = 1,		// Function return if zero/false
+    OP_ZERO_EXIT = 1,		// Function return if zero/false
     OP_LIT = 2,			// Inline literal constant
     OP_CLIT = 3,	 	// Inline literal signed character constant
     OP_SLIT = 4,	 	// Push instruction pointer and branch always
@@ -46,181 +46,183 @@ class FVM {
     OP_CONST = 6,		// Handle constant
     OP_FUNC = 7,		// Handle function call
     OP_DOES = 8,		// Handle object pointer
-    OP_PARAM = 9,		// Duplicate inline index stack element
-    OP_BRANCH = 10,		// Branch always
-    OP_ZERO_BRANCH = 11,	// Branch if zero/false
+    OP_PARAM = 9,		// Duplicate inline indexed stack element
+    OP_BRANCH = 10,		// Branch always (offset -128..127)
+    OP_ZERO_BRANCH = 11,	// Branch if zero/false (offset -128..127)
     OP_DO = 12,			// Start loop block
     OP_I = 13,			// Current loop index
     OP_J = 14,			// Outer loop index
     OP_LEAVE = 15,		// Mark loop block as completed
     OP_LOOP = 16,		// End loop block (one increment)
     OP_PLUS_LOOP = 17,		// End loop block (n increment)
-    OP_COMPILE = 18,		// Add inline operation/function code
-    OP_TRAP = 19,		// Extended instruction
-    OP_EXECUTE = 20,		// Execute operation or function
-    OP_TRACE = 21,		// Set trace mode
+    OP_EXECUTE = 18,		// Execute operation token
+    OP_TAIL = 19,		// Tail call
+    OP_HALT = 20,		// Halt virtual machine
+    OP_YIELD = 21,		// Yield virtual machine
+    OP_NOOP = 22,		// No operation
+    OP_KERNEL = 23,		// Call inline kernel token
+    OP_CALL = 24,		// Call application token
+    OP_TRACE = 25,		// Set trace mode
 
     /*
      * Memory access
      */
-    OP_C_FETCH = 22,		// Load character (signed byte)
-    OP_C_STORE = 23,		// Store character
-    OP_FETCH = 24,		// Load data
-    OP_STORE = 25,		// Store data
-    OP_PLUS_STORE = 26,		// Update data
-    OP_DP = 27,			// Data pointer variable
-    OP_HERE = 28,		// Data pointer
-    OP_ALLOT = 29,		// Allocate number of bytes
-    OP_COMMA = 30,		// Allocate and assign from top of stack
-    OP_C_COMMA = 31,		// Allocate and assign character
-    OP_CELLS = 32,		// Convert cells to bytes for allot
+    OP_C_FETCH = 26,		// Load character (signed byte)
+    OP_C_STORE = 27,		// Store character
+    OP_FETCH = 28,		// Load data
+    OP_STORE = 29,		// Store data
+    OP_PLUS_STORE = 30,		// Update data
+    OP_DP = 31,			// Data pointer variable
+    OP_HERE = 32,		// Data pointer
+    OP_ALLOT = 33,		// Allocate number of bytes
+    OP_COMMA = 34,		// Allocate and assign from top of stack
+    OP_C_COMMA = 35,		// Allocate and assign character
+    OP_COMPILE = 36,		// Add inline operation/function code
 
     /*
      * Return stack
      */
-    OP_TO_R = 33,		// Push data on return stack
-    OP_R_FROM = 34,		// Pop data from return stack
-    OP_R_FETCH = 35,		// Copy from return stack
+    OP_TO_R = 37,		// Push data on return stack
+    OP_R_FROM = 38,		// Pop data from return stack
+    OP_R_FETCH = 39,		// Copy from return stack
 
     /*
      * Parameter stack
      */
-    OP_SP = 36,			// Stack pointer
-    OP_DEPTH = 37,		// Number of elements
-    OP_DROP = 38,		// Drop top of stack
-    OP_NIP = 39,		// Drop next top of stack
-    OP_EMPTY = 40,		// Empty stack
-    OP_DUP = 41,		// Duplicate top of stack
-    OP_QUESTION_DUP = 42,	// Duplicate top of stack if not zero
-    OP_OVER = 43,		// Duplicate next top of stack
-    OP_TUCK = 44,		// Duplicate top of stack and rotate
-    OP_PICK = 45,		// Duplicate index stack element
-    OP_SWAP = 46,		// Swap two top stack elements
-    OP_ROT = 47,		// Rotate three top stack elements
-    OP_MINUS_ROT = 48,		// Inverse rotate three top stack elements
-    OP_ROLL = 49,		// Rotate given number of stack elements
-    OP_TWO_SWAP = 50,		// Swap two double stack elements
-    OP_TWO_DUP = 51,		// Duplicate double stack elements
-    OP_TWO_OVER = 52,		// Duplicate double next top of stack
-    OP_TWO_DROP = 53,		// Drop double top of stack
+    OP_SP = 40,			// Stack pointer
+    OP_DEPTH = 41,		// Number of elements
+    OP_DROP = 42,		// Drop top of stack
+    OP_NIP = 43,		// Drop next top of stack
+    OP_EMPTY = 44,		// Empty stack
+    OP_DUP = 45,		// Duplicate top of stack
+    OP_QUESTION_DUP = 46,	// Duplicate top of stack if not zero
+    OP_OVER = 47,		// Duplicate next top of stack
+    OP_TUCK = 48,		// Duplicate top of stack and rotate
+    OP_PICK = 49,		// Duplicate index stack element
+    OP_SWAP = 50,		// Swap two top stack elements
+    OP_ROT = 51,		// Rotate three top stack elements
+    OP_MINUS_ROT = 52,		// Inverse rotate three top stack elements
+    OP_ROLL = 53,		// Rotate given number of stack elements
+    OP_TWO_SWAP = 54,		// Swap two double stack elements
+    OP_TWO_DUP = 55,		// Duplicate double stack elements
+    OP_TWO_OVER = 56,		// Duplicate double next top of stack
+    OP_TWO_DROP = 57,		// Drop double top of stack
 
     /*
      * Constants
      */
-    OP_CELL = 54,		// Stack width in bytes
-    OP_MINUS_TWO = 55,		// Push constant(-2)
-    OP_MINUS_ONE = 56,		// Push constant(-1)
-    OP_ZERO = 57,		// Push constant(0)
-    OP_ONE = 58,		// Push constant(1)
-    OP_TWO = 59,		// Push constant(2)
+    OP_MINUS_TWO = 58,		// Push constant(-2)
+    OP_MINUS_ONE = 59,		// Push constant(-1)
+    OP_ZERO = 60,		// Push constant(0)
+    OP_ONE = 61,		// Push constant(1)
+    OP_TWO = 62,		// Push constant(2)
+    OP_CELL = 63,		// Stack width in bytes
+    OP_CELLS = 64,		// Convert cells to bytes for allot
 
     /*
      * Bitwise logical operations
      */
-    OP_BOOL = 60,		// Convert top of stack to boolean
-    OP_NOT = 61,		// Convert top of stack to invert boolean
-    OP_TRUE = 62,		// Push true(-1)
-    OP_FALSE = 63,		// Push false(0)
-    OP_INVERT = 64,		// Bitwise inverse top element
-    OP_AND = 65,		// Bitwise AND top two elements
-    OP_OR = 66,			// Bitwise OR top two elements
-    OP_XOR = 67,		// Bitwise XOR top two elements
+    OP_BOOL = 65,		// Convert top of stack to boolean
+    OP_NOT = 66,		// Convert top of stack to invert boolean
+    OP_TRUE = 67,		// Push true(-1)
+    OP_FALSE = 68,		// Push false(0)
+    OP_INVERT = 69,		// Bitwise inverse top element
+    OP_AND = 70,		// Bitwise AND top two elements
+    OP_OR = 71,			// Bitwise OR top two elements
+    OP_XOR = 72,		// Bitwise XOR top two elements
 
     /*
      * Arithmetic operations
      */
-    OP_NEGATE = 68,		// Negate top of stack
-    OP_ONE_PLUS = 69,		// Increment top of stack
-    OP_ONE_MINUS = 70,		// Decrement top of stack
-    OP_TWO_PLUS = 71,		// Increment by two
-    OP_TWO_MINUS = 72,		// Decrement by two
-    OP_TWO_STAR = 73,		// Multiply by two
-    OP_TWO_SLASH = 74,		// Divide by two
-    OP_PLUS = 75,		// Add top two elements
-    OP_MINUS = 76,		// Substract top two elements
-    OP_STAR = 77,		// Multiply top two elements
-    OP_STAR_SLASH = 78,		// Multiply/Divide top three elements
-    OP_SLASH = 79,		// Quotient for division of top two elements
-    OP_MOD = 80,		// Remainder for division of top two elements
-    OP_SLASH_MOD = 81,		// Quotient and remainder
-    OP_LSHIFT = 82,		// Left shift
-    OP_RSHIFT = 83,			// Right shift
+    OP_NEGATE = 73,		// Negate top of stack
+    OP_ONE_PLUS = 74,		// Increment top of stack
+    OP_ONE_MINUS = 75,		// Decrement top of stack
+    OP_TWO_PLUS = 76,		// Increment by two
+    OP_TWO_MINUS = 77,		// Decrement by two
+    OP_TWO_STAR = 78,		// Multiply by two
+    OP_TWO_SLASH = 79,		// Divide by two
+    OP_PLUS = 80,		// Add top two elements
+    OP_MINUS = 81,		// Substract top two elements
+    OP_STAR = 82,		// Multiply top two elements
+    OP_STAR_SLASH = 83,		// Multiply/Divide top three elements
+    OP_SLASH = 84,		// Quotient for division of top two elements
+    OP_MOD = 85,		// Remainder for division of top two elements
+    OP_SLASH_MOD = 86,		// Quotient and remainder
+    OP_LSHIFT = 87,		// Left shift
+    OP_RSHIFT = 88,		// Right shift
 
     /*
      * Math operations
      */
-    OP_WITHIN = 84,		// Within boundard
-    OP_ABS = 85,		// Absolute value
-    OP_MIN = 86,		// Minimum value
-    OP_MAX = 87,		// Maximum value
+    OP_WITHIN = 89,		// Within boundard
+    OP_ABS = 90,		// Absolute value
+    OP_MIN = 91,		// Minimum value
+    OP_MAX = 92,		// Maximum value
 
     /*
      * Relational operations
      */
-    OP_ZERO_NOT_EQUALS = 88,	// Not equal zero
-    OP_ZERO_LESS = 89,		// Less than zero
-    OP_ZERO_EQUALS = 90,	// Equal to zero
-    OP_ZERO_GREATER = 91,	// Greater than zero
-    OP_NOT_EQUALS = 92,		// Not equal
-    OP_LESS = 93,		// Less than
-    OP_EQUALS = 94,		// Equal
-    OP_GREATER = 95,		// Greater than
-    OP_U_LESS = 96,		// Unsigned less than
+    OP_ZERO_NOT_EQUALS = 93,	// Not equal zero
+    OP_ZERO_LESS = 94,		// Less than zero
+    OP_ZERO_EQUALS = 95,	// Equal to zero
+    OP_ZERO_GREATER = 96,	// Greater than zero
+    OP_NOT_EQUALS = 97,		// Not equal
+    OP_LESS = 98,		// Less than
+    OP_EQUALS = 99,		// Equal
+    OP_GREATER = 100,		// Greater than
+    OP_U_LESS = 101,		// Unsigned less than
 
     /*
      * Dictionary functions
      */
-    OP_LOOKUP = 97,		// Lookup word in dictionary
-    OP_TO_BODY = 98,		// Access data area application variable
-    OP_WORDS = 99,		// Print list of operations/functions
+    OP_LOOKUP = 102,		// Lookup word in dictionary
+    OP_TO_BODY = 103,		// Access data area application variable
+    OP_WORDS = 104,		// Print list of operations/functions
 
     /*
      * Basic I/O
      */
-    OP_BASE = 100,		// Base for number conversion
-    OP_HEX = 101,		// Set hexa-decimal number conversion base
-    OP_DECIMAL = 102,		// Set decimal number conversion base
-    OP_QUESTION_KEY = 103,	// Read character if available
-    OP_KEY = 104,		// Wait for character and read
-    OP_EMIT = 105,		// Print character
-    OP_CR = 106,		// Print new-line
-    OP_SPACE = 107,		// Print space
-    OP_SPACES = 108,		// Print spaces
-    OP_U_DOT = 109,		// Print top of stack as unsigned
-    OP_DOT = 110,		// Print top of stack
-    OP_DOT_S = 111,		// Print contents of parameter stack
-    OP_DOT_QUOTE = 112,		// Print program memory string
-    OP_TYPE = 113,		// Print string
-    OP_DOT_NAME = 114,		// Print operation/function name
-    OP_QUESTION = 115,		// Print value of variable
+    OP_BASE = 105,		// Base for number conversion
+    OP_HEX = 106,		// Set hexa-decimal number conversion base
+    OP_DECIMAL = 107,		// Set decimal number conversion base
+    OP_QUESTION_KEY = 108,	// Read character if available
+    OP_KEY = 109,		// Wait for character and read
+    OP_EMIT = 110,		// Print character
+    OP_CR = 111,		// Print new-line
+    OP_SPACE = 112,		// Print space
+    OP_SPACES = 113,		// Print spaces
+    OP_U_DOT = 114,		// Print top of stack as unsigned
+    OP_DOT = 115,		// Print top of stack
+    OP_DOT_S = 116,		// Print contents of parameter stack
+    OP_DOT_QUOTE = 117,		// Print program memory string
+    OP_TYPE = 118,		// Print string
+    OP_DOT_NAME = 119,		// Print operation/function name
+    OP_QUESTION = 120,		// Print value of variable
 
     /*
      * Arduino extensions
      */
-    OP_MICROS = 116,		// Micro-seconds
-    OP_MILLIS = 117,		// Milli-seconds
-    OP_DELAY = 118,		// Delay milli-seconds (yield)
-    OP_PINMODE = 119,		// Digital pin mode
-    OP_DIGITALREAD = 120,	// Read digital pin
-    OP_DIGITALWRITE = 121,	// Write digital pin
-    OP_DIGITALTOGGLE = 122,	// Toggle digital pin
-    OP_ANALOGREAD = 123,	// Read analog pin
-    OP_ANALOGWRITE = 124,	// Write pwm pin
-
-    /*
-     * High-level control
-     */
-    OP_HALT = 125,		// Halt virtual machine
-    OP_YIELD = 126,		// Yield virtual machine
-    OP_TAIL = 127,		// Tail call
-    OP_NOOP = 128,		// No operation
+    OP_MICROS = 121,		// Micro-seconds
+    OP_MILLIS = 122,		// Milli-seconds
+    OP_DELAY = 123,		// Delay milli-seconds (yield)
+    OP_PINMODE = 124,		// Digital pin mode
+    OP_DIGITALREAD = 125,	// Read digital pin
+    OP_DIGITALWRITE = 126,	// Write digital pin
+    OP_DIGITALTOGGLE = 127,	// Toggle digital pin
+    OP_ANALOGREAD = 128,	// Read analog pin
+    OP_ANALOGWRITE = 129,	// Write pwm pin
 
     /*
      * Max dictionary tokens
+     * 0..127 	direct kernel words/switch, PROGMEM
+     * 128..255	extended kernel words/prefix/function table, PROGMEM
+     * 256..383 direct application words/function table, PROGMEM
+     * 384..511 extended application words/prefix/function table, SRAM
      */
     CORE_MAX = 128,
     KERNEL_MAX = 256,
-    SKETCH_MAX = 383
+    FUNC_MAX = 384,
+    TOKEN_MAX = 511
   };
 
   /** Cell data type. */
@@ -351,27 +353,31 @@ class FVM {
    */
   struct const_t {
     code_t op;			// OP_CONST
-    cell_t value;		// Value of constant
+    cell_t value;		// Value of constant (PROGMEM)
   };
 
   /**
    * Wrapper for extension functions.
    * @param[in] task.
    */
-  typedef void (*fn_t)(task_t &task);
+  typedef void (*fn_t)(task_t &task, void* env);
   struct func_t {
     code_t op;			// OP_FUNC
     fn_t fn;			// Pointer to function
+    void* env;			// Pointer to environment (RAM)
   };
 
   /**
    * Construct forth virtual machine with given data area.
    * @param[in] dp0 initial data pointer.
    */
-  FVM(void* dp0 = 0) :
-    m_dp((uint8_t*) dp0),
-    m_dp0((uint8_t*) dp0)
-  {}
+  FVM(uint8_t* dp0 = 0) :
+    m_dp(dp0),
+    m_dp0(dp0),
+    m_latest(dp0)
+  {
+    *m_latest = 0;
+  }
 
   /**
    * Get current data allocation pointer.
@@ -384,11 +390,40 @@ class FVM {
 
   /**
    * Set data allocation pointer.
-   * @param[in] s string.
+   * @param[in] dp data allocation pointer.
    */
-  void dp(void* dp)
+  void dp(uint8_t* dp)
   {
-    m_dp = (uint8_t*) dp;
+    m_dp = dp;
+  }
+
+  /**
+   * Get current latest word pointer.
+   * @return pointer.
+   */
+  uint8_t* latest()
+  {
+    return (m_latest);
+  }
+
+  /**
+   * Link latest dictionary entry.
+   */
+  void link()
+  {
+    *m_latest = m_dp - m_latest;
+    m_latest = m_dp;
+  }
+
+  /**
+   * Forget dictionary entry.
+   */
+  void forget(uint8_t* dp = 0)
+  {
+    if (dp == 0) dp = m_dp0;
+    m_latest = dp;
+    *m_latest = 0;
+    m_dp = m_dp0;
   }
 
   /**
@@ -486,6 +521,9 @@ class FVM {
   // Data allocation pointer
   uint8_t* m_dp;
   uint8_t* m_dp0;
+
+  // Sketch dictionary
+  uint8_t* m_latest;
 };
 
 /**
@@ -585,13 +623,15 @@ class FVM {
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] fn name of function.
- */
-#define FVM_FUNCTION(id,var,fn)						\
+ * @param[in] env environment.
+*/
+#define FVM_FUNCTION(id,var,fn,env)					\
   const int var = id;							\
   const char var ## _PSTR[] PROGMEM = #fn;				\
   const FVM::func_t var ## _FUNC PROGMEM = {				\
     FVM_OP(FUNC),							\
-    fn									\
+    fn,									\
+    (FVM::cell_t*) &env							\
   }
 
 /**
