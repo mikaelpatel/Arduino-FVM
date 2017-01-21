@@ -27,6 +27,7 @@
 
 #include <FVM.h>
 
+// Define to allow trace of virtual machine
 #define USE_TRACE
 
 // 1 constant OUTPUT

@@ -1,5 +1,5 @@
 /**
- * @file FVM/Shell.ino
+ * @file FVM/Interpret.ino
  * @version 1.0
  *
  * @section License
@@ -71,6 +71,22 @@ void numbers(FVM::task_t &task, void* env)
 }
 FVM_FUNCTION(7, NUMBERS, numbers, pad);
 
+FVM_CONSTANT(8, OUTPUT_MODE, "OUTPUT", 1);
+
+FVM_CONSTANT(9, LED_PIN, "LED", 13);
+
+FVM_COLON(10, BLINK, "blink")
+  FVM_OP(ZERO),
+  FVM_OP(DO), 7,
+    FVM_OP(DUP),
+    FVM_OP(DIGITALTOGGLE),
+    FVM_OP(OVER),
+    FVM_OP(DELAY),
+  FVM_OP(LOOP), -5,
+  FVM_OP(TWO_DROP),
+  FVM_OP(EXIT)
+};
+
 const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) ARRAY_CODE,
   (code_P) TWO_CONST_CODE,
@@ -79,7 +95,10 @@ const FVM::code_P FVM::fntab[] PROGMEM = {
   (code_P) &Z_VAR,
   (code_P) &C2_VAR,
   (code_P) &PAD_VAR,
-  (code_P) &NUMBERS_FUNC
+  (code_P) &NUMBERS_FUNC,
+  (code_P) &OUTPUT_MODE_CONST,
+  (code_P) &LED_PIN_CONST,
+  (code_P) BLINK_CODE,
 };
 
 const str_P FVM::fnstr[] PROGMEM = {
@@ -91,19 +110,23 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) C2_PSTR,
   (str_P) PAD_PSTR,
   (str_P) NUMBERS_PSTR,
+  (str_P) OUTPUT_MODE_PSTR,
+  (str_P) LED_PIN_PSTR,
+  (str_P) BLINK_PSTR,
   0
 };
 
+const int DATA_MAX = 128;
 uint8_t data[128];
 
-FVM fvm(data);
+FVM fvm(data, DATA_MAX);
 FVM::Task<32,16> task(Serial);
 
 void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Shell: started [Newline]"));
+  Serial.println(F("FVM/Interpret: started [Newline]"));
 }
 
 void loop()

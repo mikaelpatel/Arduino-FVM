@@ -37,14 +37,14 @@ class FVM {
     /*
      * Control structure and literals
      */
-    OP_EXIT = 0,	 	// Function return
-    OP_ZERO_EXIT = 1,		// Function return if zero/false
+    OP_EXIT = 0,	 	// Threaded code return
+    OP_ZERO_EXIT = 1,		// Threaded code return if zero/false
     OP_LIT = 2,			// Inline literal constant
     OP_CLIT = 3,	 	// Inline literal signed character constant
     OP_SLIT = 4,	 	// Push instruction pointer and branch always
     OP_VAR = 5,			// Handle variable reference
     OP_CONST = 6,		// Handle constant
-    OP_FUNC = 7,		// Handle function call
+    OP_FUNC = 7,		// Handle function wrapper call
     OP_DOES = 8,		// Handle object pointer
     OP_PARAM = 9,		// Duplicate inline indexed stack element
     OP_BRANCH = 10,		// Branch always (offset -128..127)
@@ -55,14 +55,14 @@ class FVM {
     OP_LEAVE = 15,		// Mark loop block as completed
     OP_LOOP = 16,		// End loop block (one increment)
     OP_PLUS_LOOP = 17,		// End loop block (n increment)
-    OP_EXECUTE = 18,		// Execute operation token
-    OP_TAIL = 19,		// Tail call
+    OP_NOOP = 18,		// No operation
+    OP_EXECUTE = 19,		// Execute operation token
     OP_HALT = 20,		// Halt virtual machine
     OP_YIELD = 21,		// Yield virtual machine
-    OP_NOOP = 22,		// No operation
-    OP_KERNEL = 23,		// Call inline kernel token
-    OP_CALL = 24,		// Call application token
-    OP_TRACE = 25,		// Set trace mode
+    OP_KERNEL = 22,		// Call inline kernel token
+    OP_CALL = 23,		// Call application token
+    OP_TRACE = 24,		// Set trace mode
+    OP_ROOM = 25,		// Dictionary state
 
     /*
      * Memory access
@@ -77,7 +77,7 @@ class FVM {
     OP_ALLOT = 33,		// Allocate number of bytes
     OP_COMMA = 34,		// Allocate and assign from top of stack
     OP_C_COMMA = 35,		// Allocate and assign character
-    OP_COMPILE = 36,		// Add inline operation/function code
+    OP_COMPILE = 36,		// Add inline token
 
     /*
      * Return stack
@@ -177,7 +177,7 @@ class FVM {
      */
     OP_LOOKUP = 102,		// Lookup word in dictionary
     OP_TO_BODY = 103,		// Access data area application variable
-    OP_WORDS = 104,		// Print list of operations/functions
+    OP_WORDS = 104,		// List dictionaries
 
     /*
      * Basic I/O
@@ -196,7 +196,7 @@ class FVM {
     OP_DOT_S = 116,		// Print contents of parameter stack
     OP_DOT_QUOTE = 117,		// Print program memory string
     OP_TYPE = 118,		// Print string
-    OP_DOT_NAME = 119,		// Print operation/function name
+    OP_DOT_NAME = 119,		// Print name of token
     OP_QUESTION = 120,		// Print value of variable
 
     /*
@@ -214,14 +214,14 @@ class FVM {
 
     /*
      * Max dictionary tokens
-     * 0..127 	direct kernel words/switch, PROGMEM
-     * 128..255	extended kernel words/prefix/function table, PROGMEM
-     * 256..383 direct application words/function table, PROGMEM
-     * 384..511 extended application words/prefix/function table, SRAM
+     * 0..127 direct kernel words/switch, PROGMEM
+     * 128..255	extended kernel words/prefix/threaded code table, PROGMEM
+     * 256..383 direct application words/threaded code table, PROGMEM
+     * 384..511 extended application words/prefix/threaded code table, SRAM
      */
     CORE_MAX = 128,
     KERNEL_MAX = 256,
-    FUNC_MAX = 384,
+    APPLICATION_MAX = 384,
     TOKEN_MAX = 511
   };
 
@@ -233,7 +233,13 @@ class FVM {
   typedef int32_t cell2_t;
   typedef uint32_t ucell2_t;
 
-  /** Operation code/function index. */
+  /**
+   * Token and threaded code data type:
+   * 0..127 direct kernel words/switch, PROGMEM
+   * -1..-128 direct application words/threaded code table, PROGMEM
+   * 0..255 OP_KERNEL prefix, direct kernel words/switch, PROGMEM
+   * 384..511 mapped 0..127 OP_CALL prefix, SRAM
+   */
   typedef int8_t code_t;
   typedef const PROGMEM code_t* code_P;
 
@@ -248,14 +254,14 @@ class FVM {
 
     /**
      * Construct task with given in-/output stream, stacks and
-     * function pointer. Default number conversion base is 10,
+     * threaded code pointer. Default number conversion base is 10,
      * and trace disabled.
      * @param[in] ios in-/output stream.
      * @param[in] sp0 bottom of parameter stack.
      * @param[in] rp0 bottom of return stack.
-     * @param[in] fn function pointer.
+     * @param[in] fn threaded code pointer.
      */
-    task_t(Stream&ios, cell_t* sp0, code_P* rp0, code_P fn ) :
+    task_t(Stream&ios, cell_t* sp0, code_P* rp0, code_P fn) :
       m_ios(ios),
       m_base(10),
       m_trace(false),
@@ -278,7 +284,7 @@ class FVM {
 
     /**
      * Pop value from parameter stack.
-     * @return value.
+     * @return value poped.
      */
     cell_t pop()
     {
@@ -295,7 +301,7 @@ class FVM {
     }
 
     /**
-     * Current trace mode.
+     * Get trace mode.
      * @return trace mode.
      */
     bool trace()
@@ -304,7 +310,7 @@ class FVM {
     }
 
     /**
-     * Enable/disable trace mode.
+     * Set trace mode.
      * @param[in] flag trace mode.
      */
     void trace(bool flag)
@@ -313,8 +319,8 @@ class FVM {
     }
 
     /**
-     * Set task instruction pointer to given function pointer.
-     * @param[in] fn function pointer.
+     * Set task instruction pointer to given threaded code pointer.
+     * @param[in] fn threaded code pointer.
      * @return task reference.
      */
     task_t& call(code_P fn)
@@ -330,21 +336,30 @@ class FVM {
     code_P m_returns[RETURN_STACK_MAX];
 
     /**
-     * Construct task with given in-/output stream and function
+     * Construct task with given in-/output stream and threaded code
      * pointer.
      * @param[in] ios in-/output stream.
-     * @param[in] fn function pointer (default none).
+     * @param[in] fn threaded code pointer (default none).
      */
     Task(Stream& ios, code_P fn = 0) :
-      task_t(ios, m_params, m_returns, fn)
+    task_t(ios, m_params, m_returns, fn)
     {}
+  };
+
+  /**
+   * Wrapper for create/does.
+   */
+  struct obj_t {
+    code_t op;			// CALL(FN)
+    code_t noop;		// OP_NOOP
+    cell_t* value;		// Pointer to value (RAM)
   };
 
   /**
    * Wrapper for variable.
    */
   struct var_t {
-    code_t op;			// OP_VAR
+    code_t op;			// OP_VAR/OP_CONST
     cell_t* value;		// Pointer to value (RAM)
   };
 
@@ -368,19 +383,29 @@ class FVM {
   };
 
   /**
-   * Construct forth virtual machine with given data area.
-   * @param[in] dp0 initial data pointer.
+   * Construct forth virtual machine with given data area and dynamic
+   * dictionary.
+   * @param[in] dp0 initial data pointer (default none).
+   * @param[in] words number of words in dynamic dictionary (default 0).
    */
-  FVM(uint8_t* dp0 = 0) :
+   FVM(uint8_t* dp0 = 0, size_t bytes = 0, uint8_t words = 0) :
+    DICT_MAX(bytes),
+    WORD_MAX(words),
+    m_next(0),
     m_dp(dp0),
-    m_dp0(dp0),
-    m_latest(dp0)
+    m_dp0(dp0)
   {
-    *m_latest = 0;
+    if (words == 0) return;
+    m_body = (code_t**) dp0;
+    dp0 += sizeof(code_t**) * words;
+    m_name = (char**) dp0;
+    dp0 += sizeof(char**) * words;
+    m_dp = dp0;
+    m_dp0 = dp0;
   }
 
   /**
-   * Get current data allocation pointer.
+   * Get data allocation pointer.
    * @return pointer.
    */
   uint8_t* dp()
@@ -398,47 +423,8 @@ class FVM {
   }
 
   /**
-   * Get current latest word pointer.
-   * @return pointer.
-   */
-  uint8_t* latest()
-  {
-    return (m_latest);
-  }
-
-  /**
-   * Link latest dictionary entry.
-   */
-  void link()
-  {
-    *m_latest = m_dp - m_latest;
-    m_latest = m_dp;
-  }
-
-  /**
-   * Forget dictionary entry.
-   */
-  void forget(uint8_t* dp = 0)
-  {
-    if (dp == 0) dp = m_dp0;
-    m_latest = dp;
-    *m_latest = 0;
-    m_dp = m_dp0;
-  }
-
-  /**
-   * Allocate and copy given string to data area.
-   * @param[in] s string.
-   */
-  void compile(const char* s)
-  {
-    strcpy((char*) m_dp, s);
-    m_dp += strlen(s) + 1;
-  }
-
-  /**
    * Allocate and copy given operation code to data area.
-   * @param[in] op operation code.
+   * @param[in] op operation code (token).
    */
   void compile(code_t op)
   {
@@ -446,17 +432,54 @@ class FVM {
   }
 
   /**
-   * Lookup given string in dictionary. Return operation code
-   * (0..KERNEL_MAX-1) or function index (KERNEL_MAX..SKETCH_MAX),
-   * otherwise negative error code(-1).
+   * Allocate and copy given string to data area. Add name and body
+   * reference to the dynamic dictionary.
    * @param[in] name string.
-   * @return error code.
    */
-  int lookup(const char* name);
+  void create(const char* name)
+  {
+    if (m_next == WORD_MAX) return;
+    m_name[m_next] = (char*) m_dp;
+    strcpy((char*) m_dp, name);
+    m_dp += strlen(name) + 1;
+    m_body[m_next] = (code_t*) (m_dp + CODE_P_MAX);
+    m_next += 1;
+  }
+
+  /**
+   * Access name from dynamic dictionary.
+   * @param[in] op operation code (token).
+   */
+  const char* name(int op)
+  {
+    return (op < m_next ? m_name[op] : 0);
+  }
+
+  /**
+   * Access body from dynamic dictionary.
+   * @param[in] op operation code (token).
+   */
+  code_t* body(int op)
+  {
+    return (op < m_next ? m_body[op] - CODE_P_MAX : 0);
+  }
+
+  /**
+   * Forget latest dynamic dictionary words up to and including
+   * given token/word.
+   * @param[in] op operation code (token).
+   */
+  void forget(int op)
+  {
+    op = op - APPLICATION_MAX;
+    if (op < 0 || op > m_next) return;
+    m_dp = (uint8_t*) m_name[op];
+    m_next = op;
+  }
 
   /**
    * Scan token to given buffer. Return break character or negative
-   * error code.
+   * error code(-1).
    * @param[in] bp buffer pointer.
    * @param[in] task stream to use.
    * @return break character or negative error code.
@@ -464,25 +487,33 @@ class FVM {
   int scan(char* bp, task_t& task);
 
   /**
-   * Resume task in virtual machine with given task. Returns on
-   * yield(1), halt(0) or illegal instruction (-1).
+   * Lookup given string in dictionary. Return token otherwise
+   * negative error code(-1).
+   * @param[in] name string.
+   * @return toker or negative error code.
+   */
+  int lookup(const char* name);
+
+  /**
+   * Resume task in virtual machine with given task. Return yield(1),
+   * halt(0), or error code(-1).
    * @param[in] task to resume.
    * @return error code.
    */
   int resume(task_t& task);
 
   /**
-   * Execute given operation (or function) with given task.
-   * @param[in] op operation code or function index.
+   * Execute given token with given task.
+   * @param[in] op token to execute.
    * @param[in] task to resume.
    * @return error code.
    */
   int execute(int op, task_t& task);
 
   /**
-   * Execute given function code pointer with task. Returns
+   * Execute given threaded code pointer with task. Returns
    * on yield(1), halt(0) or illegal instruction (-1).
-   * @param[in] fn function code pointer.
+   * @param[in] fn threaded code pointer.
    * @param[in] task to resume.
    * @return error code.
    */
@@ -493,8 +524,9 @@ class FVM {
 
   /**
    * Lookup given name in dictionary and execute with given task.
-   * Convert to number if possible, and push on task stack.
-   * @param[in] name of function to execute.
+   * Convert to number if possible, and push on task stack.  Returns
+   * on yield(1), halt(0) or illegal instruction (-1).
+   * @param[in] name of word to execute.
    * @param[in] task to resume.
    * @return error code.
    */
@@ -504,26 +536,32 @@ class FVM {
   }
 
   /**
-   * Interpret; scan, lookup and execute.
+   * Interpret; scan, lookup and execute until halt or error. Returns
+   * on halt(0) or illegal instruction (-1).
    * @param[in] task to run.
    * @return error code.
    */
   int interpret(task_t& task);
 
-  // Function code and dictionary provided by sketch
+  // Threaded code and dictionary to be provided by sketch (program memory)
   static const code_P fntab[] PROGMEM;
   static const str_P fnstr[] PROGMEM;
 
+  // Address mapping; max program memory code pointer
+  static const uint16_t CODE_P_MAX = 0x8000;
+
  protected:
-  // Kernel dictionary
+  // Kernel dictionary (optional)
   static const str_P opstr[] PROGMEM;
 
-  // Data allocation pointer
+  // Data allocation pointer and dynamic dictionary
+  const size_t DICT_MAX;
+  const uint8_t WORD_MAX;
+  uint8_t m_next;
   uint8_t* m_dp;
   uint8_t* m_dp0;
-
-  // Sketch dictionary
-  uint8_t* m_latest;
+  code_t** m_body;
+  char** m_name;
 };
 
 /**
@@ -542,7 +580,7 @@ class FVM {
   FVM::code_t((n) >> 8)
 
 /**
- * Compile literal number/character.
+ * Compile literal number (-128..127) or character (0..255).
  * @param[in] n number.
  */
 #define FVM_CLIT(n)							\
@@ -556,15 +594,7 @@ class FVM {
 #define FVM_CALL(fn) FVM::code_t(-fn-1)
 
 /**
- * Compile tail call to given function in function table.
- * @param[in] fn function index in table.
- */
-#define FVM_TAIL(fn)							\
-  FVM::OP_TAIL,								\
-  FVM_CALL(fn)
-
-/**
- * Create a named reference to a created object.
+ * Create a named reference to a created object in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] does object handler (function).
@@ -573,13 +603,14 @@ class FVM {
 #define FVM_CREATE(id,var,does,data)					\
   const int var = id;							\
   const char var ## _PSTR[] PROGMEM = #data;				\
-  const FVM::var_t var ## _VAR PROGMEM = {				\
+  const FVM::obj_t var ## _VAR PROGMEM = {				\
     FVM_CALL(does),							\
+    FVM_OP(NOOP),							\
     (FVM::cell_t*) &data						\
   }
 
 /**
- * Create a named reference to a variable.
+ * Create a named reference to a variable in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] data storage.
@@ -588,12 +619,12 @@ class FVM {
   const int var = id;							\
   const char var ## _PSTR[] PROGMEM = #data;				\
   const FVM::var_t var ## _VAR PROGMEM = {				\
-    FVM_OP(VAR),							\
+    FVM_OP(CONST),							\
     (FVM::cell_t*) &data						\
   }
 
 /**
- * Create a constant value.
+ * Create a constant value in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] name dictionary string.
@@ -608,7 +639,7 @@ class FVM {
   }
 
 /**
- * Create a colon definition.
+ * Create a colon definition in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] name dictionary string.
@@ -619,7 +650,7 @@ class FVM {
   const FVM::code_t var ## _CODE[] PROGMEM = {
 
 /**
- * Create an extension function handler.
+ * Create an extension function handler in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] fn name of function.
@@ -635,7 +666,7 @@ class FVM {
   }
 
 /**
- * Create a name table symbol.
+ * Create a name table symbol in program memory.
  * @param[in] id identity index.
  * @param[in] var variable name.
  * @param[in] name dictionary string.

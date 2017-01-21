@@ -200,7 +200,7 @@ const FVM::code_t SKETCH_CODE[] PROGMEM = {
 
   // Delay
   FVM_LIT(100),			// -
-  FVM_OP(DELAY),		// 1000
+  FVM_OP(DELAY),		// 100
   FVM_OP(HALT)			// -
 };
 

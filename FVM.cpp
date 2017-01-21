@@ -24,6 +24,13 @@
 #include "FVM.h"
 
 /**
+ * Enable threaded code in data memory.
+ * 0: Program memory only.
+ * 1: Data and program memory.
+ */
+#define FVM_THREADING 1
+
+/**
  * Enable symbolic trace of virtual machine instruction cycle.
  * 0: No trace.
  * 1: Print indented operation code and stack contents.
@@ -35,33 +42,58 @@
 /**
  * Enable kernel dictionary. Remove to reduce foot-print for
  * non-interactive application.
+ * 0: No kernel dictionary.
+ * 1: Add kernel dictionary
  */
-#define FVM_DICT
+#define FVM_KERNEL_DICT 1
+
+/**
+ * Enable kernel optimization.
+ * 0: No kernel optimization.
+ * 1: Tail optimization.
+ */
+#define FVM_KERNEL_OPT 1
 
 // Forth Virtual Machine support macros
-#define NEXT() goto INNER
 #define OP(n) case OP_ ## n:
-#define FETCH(ip) (int8_t) pgm_read_byte(ip)
-#define WFETCH(ip) (cell_t) pgm_read_word(ip)
+#define NEXT() goto INNER
+#define FALLTHROUGH()
 #define CALL(fn) tp = fn; goto FNCALL
 #define FNTAB(ir) (code_P) pgm_read_word(fntab-ir-1)
 #define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(fnstr-ir-1)
 #define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(opstr+ir)
+
+// Configurate for threading program memory only or also data memory
+#if (FVM_THREADING == 0)
+
+#define fetch_byte(ip) (int8_t) pgm_read_byte(ip)
+#define fetch_word(ip) (cell_t) pgm_read_word(ip)
+
+#else
+
+int8_t fetch_byte(FVM::code_P ip)
+{
+  if (ip < (FVM::code_P) FVM::CODE_P_MAX)
+    return ((int8_t) pgm_read_byte(ip));
+  return (*(((int8_t*) ip) - FVM::CODE_P_MAX));
+}
+
+FVM::cell_t fetch_word(FVM::code_P ip)
+{
+  if (ip < (FVM::code_P) FVM::CODE_P_MAX)
+    return ((FVM::cell_t) pgm_read_word(ip));
+  return (*(FVM::cell_t*) (((int8_t*) ip) - FVM::CODE_P_MAX));
+}
+
+#endif
 
 int FVM::lookup(const char* name)
 {
   const char* s;
 
   // Search dynamic sketch dictionary, return index
-  if (m_dp0 != NULL) {
-    uint8_t* dp = m_dp0;
-    uint8_t offset;
-    for (int i = 0; (offset = *dp) != 0; i++) {
-      s = (const char*) dp + 1;
-      if (!strcmp(name, s)) return (i + FVM::FUNC_MAX);
-      dp += offset;
-    }
-  }
+  for (int i = 0; i < m_next; i++)
+    if (!strcmp(name, m_name[i])) return (i + FVM::APPLICATION_MAX);
 
   // Search static sketch dictionary, return index
   for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
@@ -80,13 +112,13 @@ int FVM::scan(char* bp, task_t& task)
   Stream& ios = task.m_ios;
   char c;
 
-  // Skip white space
+  // Skip white space (blocking)
   do {
     while (!ios.available());
     c = ios.read();
   } while (c <= ' ');
 
-  // Scan until white space
+  // Scan until white space (blocking)
   do {
     *bp++ = c;
     while (!ios.available());
@@ -118,11 +150,15 @@ int FVM::resume(task_t& task)
   // Positive opcode (0..127) are direct operation codes. Negative
   // opcodes (-1..-128) are negative index (plus one) in threaded code
   // table. Direct operation codes may be implemented as a primitive
-  // or as an internal threaded code call.
+  // or as an internal threaded code call. Tail call optimization.
 #if (FVM_TRACE == 0)
 
-  while ((ir = FETCH(ip++)) < 0) {
+  while ((ir = fetch_byte(ip++)) < 0) {
+#if (FVM_KERNEL_OPT == 1)
+    if (fetch_byte(ip)) *++rp = ip;
+#else
     *++rp = ip;
+#endif
     ip = FNTAB(ir);
   }
 
@@ -154,23 +190,34 @@ int FVM::resume(task_t& task)
     }
     // Fetch next instruction and check for threaded call or primitive
     // Print name or token
-    ir = FETCH(ip++);
+    ir = fetch_byte(ip++);
     if (ir < 0 ) {
+#if (FVM_KERNEL_OPT == 1)
+      if (fetch_byte(ip)) *++rp = ip;
+#else
       *++rp = ip;
+#endif
       ip = FNTAB(ir);
       if (task.m_trace) {
-#if defined(FVM_DICT)
-	ios.print(FNSTR(ir));
-#else
+#if (FVM_KERNEL_DICT == 0)
 	ios.print(KERNEL_MAX-ir-1);
+#else
+	ios.print(FNSTR(ir));
 #endif
       }
     }
     else if (task.m_trace) {
-#if defined(FVM_DICT)
-      ios.print(OPSTR(ir));
-#else
+#if (FVM_KERNEL_DICT == 0)
       ios.print(ir);
+#else
+#if (FVM_THREADING == 1)
+      if (ir == OP_CALL)
+	ios.print(m_name[(uint8_t) fetch_byte(ip)]);
+      else if (ir == OP_KERNEL)
+	ios.print(OPSTR((uint8_t) fetch_byte(ip)));
+      else
+#endif
+	ios.print(OPSTR(ir));
 #endif
     }
     // Print stack contents
@@ -201,12 +248,13 @@ int FVM::resume(task_t& task)
 DISPATCH:
   switch ((uint8_t) ir) {
 
-  // 0exit ( flag -- )
+  // ?exit ( flag -- )
   // Exit from call if zero/false.
   OP(ZERO_EXIT)
     tmp = tos;
     tos = *sp--;
     if (tmp != 0) NEXT();
+  FALLTHROUGH();
 
   // exit ( rp: ip -- )
   // Exit from call. Pop instruction pointer from return stack.
@@ -218,26 +266,30 @@ DISPATCH:
   // Push literal data (little-endian).
   OP(LIT)
     *++sp = tos;
-    tos = (uint8_t) FETCH(ip++);
-    tos |= (FETCH(ip++) << 8);
+    tos = (uint8_t) fetch_byte(ip++);
+    tos |= (fetch_byte(ip++) << 8);
   NEXT();
 
   // (clit) ( -- x )
-  // Push literal data.
+  // Push literal data (signed byte).
   OP(CLIT)
     *++sp = tos;
-    tos = FETCH(ip++);
+    tos = fetch_byte(ip++);
   NEXT();
 
   // (var) ( -- addr )
-  // Push address of variable.
+  // Push address of variable (pointer to cell).
   OP(VAR)
+    *++sp = tos;
+    tos = (cell_t) (ip - CODE_P_MAX);
+    ip = *rp--;
+  NEXT();
 
-  // (const) ( -- addr )
+  // (const) ( -- value )
   // Push value of contant.
   OP(CONST)
     *++sp = tos;
-    tos = WFETCH(ip);
+    tos = fetch_word(ip);
     ip = *rp--;
   NEXT();
 
@@ -245,8 +297,8 @@ DISPATCH:
   // Call extension function wrapper.
   OP(FUNC)
   {
-    void* env = (void*) WFETCH(ip + sizeof(fn_t));
-    fn_t fn = (fn_t) WFETCH(ip);
+    void* env = (void*) fetch_word(ip + sizeof(fn_t));
+    fn_t fn = (fn_t) fetch_word(ip);
     *++sp = tos;
     task.m_sp = sp;
     task.m_rp = rp;
@@ -258,19 +310,19 @@ DISPATCH:
   }
   NEXT();
 
-  // (does) ( -- value )
-  // Push literal constant and return.
+  // (does) ( -- addr )
+  // Push object pointer accessed by return address.
   OP(DOES)
     *++sp = tos;
     tp = *rp--;
-    tos = WFETCH(tp);
+    tos = fetch_word(tp + 1);
   NEXT();
 
   // (param) ( xn..x0 -- xn..x0 xi )
   // Duplicate inline index stack element to top of stack.
   OP(PARAM)
     *++sp = tos;
-    ir = FETCH(ip++);
+    ir = fetch_byte(ip++);
     tos = *(sp - ir);
   NEXT();
 
@@ -283,14 +335,14 @@ DISPATCH:
   // (branch) ( -- )
   // Branch always (8-bit offset, -128..127).
   OP(BRANCH)
-    ir = FETCH(ip);
+    ir = fetch_byte(ip);
     ip += ir;
   NEXT();
 
   // (0branch) ( flag -- )
   // Branch zero equal/false (8-bit offset, -128..127).
   OP(ZERO_BRANCH)
-    ir = FETCH(ip);
+    ir = fetch_byte(ip);
     ip += (tos == 0) ? ir : 1;
     tos = *sp--;
   NEXT();
@@ -305,7 +357,7 @@ DISPATCH:
       ip += 1;
     }
     else {
-      ir = FETCH(ip);
+      ir = fetch_byte(ip);
       ip += ir;
     }
     tos = *sp--;
@@ -329,7 +381,7 @@ DISPATCH:
   OP(LOOP)
     *rp += 1;
     if (*rp < *(rp - 1)) {
-      ir = FETCH(ip);
+      ir = fetch_byte(ip);
       ip += ir;
     }
     else {
@@ -343,7 +395,7 @@ DISPATCH:
   OP(PLUS_LOOP)
     *rp += tos;
     if (*rp < *(rp - 1)) {
-      ir = FETCH(ip);
+      ir = fetch_byte(ip);
       ip += ir;
     }
     else {
@@ -351,6 +403,11 @@ DISPATCH:
       ip += 1;
     }
     tos = *sp--;
+  FALLTHROUGH();
+
+  // noop ( -- )
+  // No operation.
+  OP(NOOP)
   NEXT();
 
   // execute ( token -- )
@@ -361,28 +418,27 @@ DISPATCH:
       tos = *sp--;
       goto DISPATCH;
     }
-    else {
+    else if (tos < APPLICATION_MAX) {
       *++rp = ip;
       ip = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
       tos = *sp--;
     }
-  NEXT();
-
-  // tail ( -- )
-  // Tail call to threaded code.
-  OP(TAIL)
-    ir = FETCH(ip++);
-    ip = FNTAB(ir);
+    else {
+      *++rp = ip;
+      ip = (code_P) m_body[tos - APPLICATION_MAX];
+      tos = *sp--;
+    }
   NEXT();
 
   // halt ( -- )
-  // Halt virtual machine and save context.
+  // Halt virtual machine. Do not proceed on resume.
   OP(HALT)
     rp = task.m_rp0;
     ip -= 1;
+  FALLTHROUGH();
 
   // yield ( -- )
-  // Yield virtual machine and save context.
+  // Yield virtual machine.
   OP(YIELD)
     *++sp = tos;
     *++rp = ip;
@@ -390,18 +446,23 @@ DISPATCH:
     task.m_rp = rp;
   return (ir == OP_YIELD);
 
-  // kernel ( -- )
-  // Call inline kernel token.
+  // (kernel) ( -- )
+  // Call inline kernel token (0..255); compiled code.
   OP(KERNEL)
-    ir = FETCH(ip++);
+    ir = fetch_byte(ip++);
   goto DISPATCH;
 
-  // call ( -- )
-  // Call application token.
+  // (call) ( -- )
+  // Call application token in dynamic dictionary; 384..255
+  // are mapped to 0..127.
   OP(CALL)
-    ir = FETCH(ip++);
-    *++rp = ip;
-    ip = (code_P) pgm_read_word(fntab+(ir-KERNEL_MAX));
+    tmp = (uint8_t) fetch_byte(ip++);
+#if (FVM_KERNEL_OPT == 1)
+      if (fetch_byte(ip)) *++rp = ip;
+#else
+      *++rp = ip;
+#endif
+    ip = (code_P) m_body[tmp];
   NEXT();
 
   // trace ( x -- )
@@ -409,6 +470,14 @@ DISPATCH:
   OP(TRACE)
     task.m_trace = tos;
     tos = *sp--;
+  NEXT();
+
+  // room ( -- n bytes )
+  // Number of free dictionary words and bytes.
+  OP(ROOM)
+    *++sp = tos;
+    *++sp = WORD_MAX - m_next;
+    tos = DICT_MAX - (m_dp - (uint8_t*) m_body);
   NEXT();
 
   // c@ ( addr -- x )
@@ -541,7 +610,7 @@ DISPATCH:
   // (compile) ( -- )
   // Add inline token to compile stream.
   OP(COMPILE)
-    *m_dp++ = FETCH(ip++);
+    *m_dp++ = fetch_byte(ip++);
   NEXT();
 
   // >r ( x -- rp: x )
@@ -561,6 +630,7 @@ DISPATCH:
   // i ( -- i )
   // Current loop index.
   OP(I)
+  FALLTHROUGH();
 
   // r@ ( rp: x -- x, rp: x )
   // Copy data from top of return stack.
@@ -630,7 +700,7 @@ DISPATCH:
   // ?dup ( x -- x x | 0 -- 0 )
   // Duplicate non zero top of stack.
   OP(QUESTION_DUP)
-#if 0
+#if 1
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
@@ -803,6 +873,7 @@ DISPATCH:
   // -1 ( -- -1 )
   // Constant -1.
   OP(MINUS_ONE)
+  FALLTHROUGH();
 
   // TRUE ( -- -1 )
   // Constant true (alias -1).
@@ -814,6 +885,7 @@ DISPATCH:
   // 0 ( -- 0 )
   // Constant 0.
   OP(ZERO)
+  FALLTHROUGH();
 
   // FALSE ( -- 0 )
   // Constant false.
@@ -1115,6 +1187,7 @@ DISPATCH:
   // bool ( x<>0: x -- TRUE, else FALSE )
   // Convert top of stack to boolean (alias 0<>).
   OP(BOOL)
+  FALLTHROUGH();
 
   // 0<> ( x<>0: x -- -1, else 0 )
   // Top of stack not equal zero.
@@ -1151,6 +1224,7 @@ DISPATCH:
   // not ( x==0: x -- -1, else 0 )
   // Convert top of stack to invert boolean (alias 0=).
   OP(NOT)
+  FALLTHROUGH();
 
   // 0= ( x==0: x -- -1, else 0 )
   // Top of stack less equal zero.
@@ -1244,7 +1318,7 @@ DISPATCH:
   // Access data area for given token (must be greater than KERNEL_MAX).
   OP(TO_BODY)
     tp = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
-    tos = WFETCH(tp+1);
+    tos = fetch_word(tp+1);
   NEXT();
 
   // words ( -- )
@@ -1533,7 +1607,10 @@ DISPATCH:
   // ." string" ( -- )
   // Print program memory string.
   OP(DOT_QUOTE)
-    ip += ios.print((const __FlashStringHelper*) ip) + 1;
+    if (ip < (code_P) CODE_P_MAX)
+      ip += ios.print((const __FlashStringHelper*) ip) + 1;
+    else
+      ip += ios.print((const char*) ip - CODE_P_MAX) + 1;
   NEXT();
 
   // type ( addr -- )
@@ -1550,7 +1627,7 @@ DISPATCH:
     const __FlashStringHelper* s = NULL;
     if (tos < KERNEL_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
-    else if (tos < TOKEN_MAX)
+    else if (tos < APPLICATION_MAX)
       s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-KERNEL_MAX]);
     tos = (s != NULL) ? ios.print(s) : 0;
   }
@@ -1651,12 +1728,12 @@ DISPATCH:
   // fncall ( -- )
   // Internal threaded code call.
   FNCALL:
+#if (FVM_KERNEL_OPT == 1)
+    if (fetch_byte(ip)) *++rp = ip;
+#else
     *++rp = ip;
+#endif
     ip = tp;
-
-  // noop ( -- )
-  // No operation.
-  OP(NOOP)
   NEXT();
 
   default:
@@ -1681,7 +1758,10 @@ int FVM::interpret(task_t& task)
   char buffer[32];
   char c = scan(buffer, task);
   int res = execute(buffer, task);
-  if (res == -1) {
+  if (res == 1) {
+    while ((res = resume(task)) > 0);
+  }
+  else if (res == -1) {
     char* endptr;
     int value = strtol(buffer, &endptr, task.m_base);
     if (*endptr != 0) {
@@ -1697,9 +1777,9 @@ int FVM::interpret(task_t& task)
   return (res);
 }
 
-#if defined(FVM_DICT)
+#if (FVM_KERNEL_DICT == 1)
 static const char EXIT_PSTR[] PROGMEM = "exit";
-static const char ZERO_EXIT_PSTR[] PROGMEM = "(0exit)";
+static const char ZERO_EXIT_PSTR[] PROGMEM = "?exit";
 static const char LIT_PSTR[] PROGMEM = "(lit)";
 static const char CLIT_PSTR[] PROGMEM = "(clit)";
 static const char SLIT_PSTR[] PROGMEM = "(slit)";
@@ -1716,14 +1796,14 @@ static const char J_PSTR[] PROGMEM = "j";
 static const char LEAVE_PSTR[] PROGMEM = "leave";
 static const char LOOP_PSTR[] PROGMEM = "(loop)";
 static const char PLUS_LOOP_PSTR[] PROGMEM = "(+loop)";
+static const char NOOP_PSTR[] PROGMEM = "noop";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
-static const char TAIL_PSTR[] PROGMEM = "tail";
 static const char YIELD_PSTR[] PROGMEM = "yield";
 static const char HALT_PSTR[] PROGMEM = "halt";
-static const char NOOP_PSTR[] PROGMEM = "noop";
-static const char KERNEL_PSTR[] PROGMEM = "kernel";
-static const char CALL_PSTR[] PROGMEM = "call";
+static const char KERNEL_PSTR[] PROGMEM = "(kernel)";
+static const char CALL_PSTR[] PROGMEM = "(call)";
 static const char TRACE_PSTR[] PROGMEM = "trace";
+static const char ROOM_PSTR[] PROGMEM = "room";
 
 static const char C_FETCH_PSTR[] PROGMEM = "c@";
 static const char C_STORE_PSTR[] PROGMEM = "c!";
@@ -1776,6 +1856,7 @@ static const char INVERT_PSTR[] PROGMEM = "invert";
 static const char AND_PSTR[] PROGMEM = "and";
 static const char OR_PSTR[] PROGMEM = "or";
 static const char XOR_PSTR[] PROGMEM = "xor";
+
 static const char NEGATE_PSTR[] PROGMEM = "negate";
 static const char ONE_PLUS_PSTR[] PROGMEM = "1+";
 static const char ONE_MINUS_PSTR[] PROGMEM = "1-";
@@ -1842,7 +1923,7 @@ static const char ANALOGWRITE_PSTR[] PROGMEM = "analogwrite";
 #endif
 
 const str_P FVM::opstr[] PROGMEM = {
-#if defined(FVM_DICT)
+#if (FVM_KERNEL_DICT == 1)
   (str_P) EXIT_PSTR,
   (str_P) ZERO_EXIT_PSTR,
   (str_P) LIT_PSTR,
@@ -1861,14 +1942,14 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) LEAVE_PSTR,
   (str_P) LOOP_PSTR,
   (str_P) PLUS_LOOP_PSTR,
+  (str_P) NOOP_PSTR,
   (str_P) EXECUTE_PSTR,
-  (str_P) TAIL_PSTR,
   (str_P) HALT_PSTR,
   (str_P) YIELD_PSTR,
-  (str_P) NOOP_PSTR,
   (str_P) KERNEL_PSTR,
   (str_P) CALL_PSTR,
   (str_P) TRACE_PSTR,
+  (str_P) ROOM_PSTR,
 
   (str_P) C_FETCH_PSTR,
   (str_P) C_STORE_PSTR,

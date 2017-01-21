@@ -35,6 +35,7 @@
 : test5 10 0 do i 3 +loop halt ;
 : test6 10 0 do i i 5 = if leave then loop halt ;
 : test7 2 0 do 2 0 do i j loop loop halt ;
+: test8 0 analogread ;
 generate-code
 */
 
@@ -70,15 +71,20 @@ const char WORD7_PSTR[] PROGMEM = "test7";
 const FVM::code_t WORD7_CODE[] PROGMEM = {
   62, 60, 12, 11, 62, 60, 12, 5, 13, 14, 16, -3, 16, -9, 20, 0
 };
+const char WORD8_PSTR[] PROGMEM = "test8";
+const FVM::code_t WORD8_CODE[] PROGMEM = {
+  60, 22, -128, 0
+};
 const FVM::code_P FVM::fntab[] PROGMEM = {
-  WORD0_CODE,
-  WORD1_CODE,
-  WORD2_CODE,
-  WORD3_CODE,
-  WORD4_CODE,
-  WORD5_CODE,
-  WORD6_CODE,
-  WORD7_CODE
+  (code_P) &WORD0_CODE,
+  (code_P) &WORD1_CODE,
+  (code_P) &WORD2_CODE,
+  (code_P) &WORD3_CODE,
+  (code_P) &WORD4_CODE,
+  (code_P) &WORD5_CODE,
+  (code_P) &WORD6_CODE,
+  (code_P) &WORD7_CODE,
+  (code_P) &WORD8_CODE
 };
 const str_P FVM::fnstr[] PROGMEM = {
   (str_P) WORD0_PSTR,
@@ -89,6 +95,7 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) WORD5_PSTR,
   (str_P) WORD6_PSTR,
   (str_P) WORD7_PSTR,
+  (str_P) WORD8_PSTR,
   0
 };
 

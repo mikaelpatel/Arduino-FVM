@@ -1,5 +1,5 @@
 /**
- * @file FVM/Compiler.ino
+ * @file FVM/Forth.ino
  * @version 1.0
  *
  * @section License
@@ -21,9 +21,16 @@
  * Boston, MA  02111-1307  USA
  *
  * @section Description
- * Basic interactive compiler for the Forth Virtual Machine (FVM).
- * Compiles forth definitions, statements and generates virtual
- * machine code (C++).
+ * Basic interactive shell using the Forth Virtual Machine (FVM).
+ * Compiles and executes forth definitions in SRAM and PROGMEM.
+ *
+ * @section Configuration
+ * The Forth Virtua Machine (FVM) should be configured as:
+ *
+ * #define FVM_THREADING 1
+ * #define FVM_KERNEL_DICT 1
+ *
+ * Symbolic trace is option. See FVM.cpp.
  *
  * @section Words
  *
@@ -33,27 +40,25 @@
  *
  * ( comment ) start comment.
  * ." string" print string.
- * : ( -- ) start compile of function defintion.
+ * : NAME ( -- ) start compile of function defintion.
  * ; ( -- ) end compile of function definition.
- * variable ( -- ) define variable.
- * constant ( value -- ) define constant with given value.
+ * variable NAME ( -- ) define variable.
+ * constant NAME ( value -- ) define constant with given value.
+ * forget NAME ( -- ) reset allocation to given name.
  *
- * compiled-words ( -- ) print list of compiled words.
- * generate-code ( -- ) print source code for compiled words.
+ * if ( bool -- ) start conditional block.
+ * else ( -- ) end conditional block and start alternative.
+ * then ( -- ) end conditional block.
  *
- * if ( -- addr ) start conditional block.
- * else ( addr1 -- addr ) end conditional block and start alternative.
- * then ( addr -- ) end conditional block.
+ * begin ( -- ) start iteration block.
+ * again ( -- ) end infinite iteration block.
+ * until ( bool -- ) end conditional iteration block.
+ * while ( bool -- ) start conditional iteration block.
+ * repeat ( -- ) end conditional iteration block.
  *
- * begin ( -- addr ) start iteration block.
- * again ( addr -- ) end infinite iteration block.
- * until ( addr -- ) end conditional iteration block.
- * while ( addr1 -- addr1 addr2 ) start conditional iteration block.
- * repeat ( addr1 addr2 -- ) end conditional iteration block.
- *
- * do ( -- addr ) start counting iteration block.
- * loop ( addr -- ) end counting iteration block.
- * +loop ( addr -- ) counting iteration block.
+ * do ( high low -- ) start counting iteration block.
+ * loop ( -- ) end counting iteration block.
+ * +loop ( n -- ) counting iteration block.
  *
  * mark> ( -- addr ) mark forward branch.
  * resolve> ( addr -- ) resolve forward branch.
@@ -62,9 +67,6 @@
  */
 
 #include "FVM.h"
-
-// Code generation dictionary word prefix (C++)
-#define PREFIX "WORD"
 
 /*
 : mark> ( -- addr ) here 0 c, ;
@@ -194,25 +196,25 @@ FVM_SYMBOL(20, RIGHT_BRACKET, "]");
 FVM_SYMBOL(21, COLON, ":");
 FVM_SYMBOL(22, VARIABLE, "variable");
 FVM_SYMBOL(23, CONSTANT, "constant");
-FVM_SYMBOL(24, COMPILED_WORDS, "compiled-words");
-FVM_SYMBOL(25, GENERATE_CODE, "generate-code");
+FVM_SYMBOL(24, WORDS, "words");
+FVM_SYMBOL(25, FORGET, "forget");
 
 const FVM::code_P FVM::fntab[] PROGMEM = {
-  (code_P) &FORWARD_MARK_CODE,
-  (code_P) &FORWARD_RESOLVE_CODE,
-  (code_P) &BACKWARD_MARK_CODE,
-  (code_P) &BACKWARD_RESOLVE_CODE,
-  (code_P) &IF_CODE,
-  (code_P) &THEN_CODE,
-  (code_P) &ELSE_CODE,
-  (code_P) &BEGIN_CODE,
-  (code_P) &AGAIN_CODE,
-  (code_P) &UNTIL_CODE,
-  (code_P) &WHILE_CODE,
-  (code_P) &REPEAT_CODE,
-  (code_P) &DO_CODE,
-  (code_P) &LOOP_CODE,
-  (code_P) &PLUS_LOOP_CODE
+  FORWARD_MARK_CODE,
+  FORWARD_RESOLVE_CODE,
+  BACKWARD_MARK_CODE,
+  BACKWARD_RESOLVE_CODE,
+  IF_CODE,
+  THEN_CODE,
+  ELSE_CODE,
+  BEGIN_CODE,
+  AGAIN_CODE,
+  UNTIL_CODE,
+  WHILE_CODE,
+  REPEAT_CODE,
+  DO_CODE,
+  LOOP_CODE,
+  PLUS_LOOP_CODE
 };
 
 const str_P FVM::fnstr[] PROGMEM = {
@@ -240,26 +242,28 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) COLON_PSTR,
   (str_P) VARIABLE_PSTR,
   (str_P) CONSTANT_PSTR,
-  (str_P) COMPILED_WORDS_PSTR,
-  (str_P) GENERATE_CODE_PSTR,
+  (str_P) WORDS_PSTR,
+  (str_P) FORGET_PSTR,
   0
 };
 
-// Data area for the compiler code generation
-const int DATA_MAX = 1024;
-uint8_t data[DATA_MAX];
+// Size of data area and dynamic dictionary
+const int DATA_MAX = (RAMEND - RAMSTART - 1024);
+const int DICT_MAX = (RAMEND - RAMSTART) / 64;
 
-// Forth virtual machine and task
-const int WORD_MAX = 32;
-FVM fvm(data, DATA_MAX, WORD_MAX);
+// Forth virtual machine, data area and task
+uint8_t data[DATA_MAX];
+FVM fvm(data, DATA_MAX, DICT_MAX);
 FVM::Task<64,32> task(Serial);
+
+// Interpreter state
 bool compiling = false;
 
 void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Compiler V1.0.0: started [Newline]"));
+  Serial.println(F("FVM/Forth V1.0.0: started [Newline]"));
 }
 
 void loop()
@@ -286,8 +290,9 @@ void loop()
       if (op >= FVM::CORE_MAX) fvm.compile(FVM::OP_KERNEL);
       fvm.compile(op);
     }
-    else
-      fvm.execute(op, task);
+    else {
+      execute(op);
+    }
   }
 
   // Skip comments
@@ -302,12 +307,12 @@ void loop()
       compiling = true;
       break;
     case COLON:
-      fvm.scan(buffer, task);
+      c = fvm.scan(buffer, task);
       fvm.create(buffer);
       compiling = true;
       break;
     case VARIABLE:
-      fvm.scan(buffer, task);
+      c = fvm.scan(buffer, task);
       fvm.create(buffer);
       fvm.compile(FVM::OP_VAR);
       fvm.compile(0);
@@ -315,21 +320,41 @@ void loop()
       break;
     case CONSTANT:
       val = task.pop();
-      fvm.scan(buffer, task);
+      c = fvm.scan(buffer, task);
       fvm.create(buffer);
       fvm.compile(FVM::OP_CONST);
       fvm.compile(val);
       fvm.compile(val >> 8);
       break;
-    case COMPILED_WORDS:
-      compiled_words(Serial);
+    case WORDS:
+      {
+	Stream& ios = task.m_ios;
+	const char* s;
+	int nr = 0;
+	fvm.execute(FVM::OP_WORDS, task);
+	ios.println();
+	while ((s = fvm.name(nr)) != 0) {
+	  int len = ios.print(s);
+	  if (++nr % 5 == 0)
+	    ios.println();
+	  else {
+	    for (;len < 16; len++) ios.print(' ');
+	  }
+	}
+	if (nr % 5 != 0) ios.println();
+      }
       break;
-    case GENERATE_CODE:
-      generate_code(Serial);
-      fvm.forget(FVM::APPLICATION_MAX);
+    case FORGET:
+      {
+	c = fvm.scan(buffer, task);
+	op = fvm.lookup(buffer);
+	if (op < FVM::APPLICATION_MAX) goto error;
+	fvm.forget(op);
+      }
       break;
     default:
-      goto error;
+      if (op < FVM::APPLICATION_MAX) goto error;
+      execute(op);
     }
   }
 
@@ -357,38 +382,32 @@ void loop()
       compiling = false;
       break;
     default:
-      if (op < SEMICOLON)
-	fvm.execute(op, task);
-      else if (op >= FVM::APPLICATION_MAX) {
-	fvm.compile(FVM::APPLICATION_MAX - op - 1);
+      if (op < SEMICOLON) {
+	execute(op);
       }
-      else goto error;
+      else if (op >= FVM::APPLICATION_MAX) {
+	fvm.compile(FVM::OP_CALL);
+	fvm.compile(op - FVM::APPLICATION_MAX);
+      }
+      else {
+	goto error;
+      }
     }
   }
 
   // Prompt on end of line
-  if (c == '\n' && !compiling) Serial.println(F(" ok"));
+  if (c == '\n' && !compiling) {
+    if (task.trace())
+      Serial.println(F(" ok"));
+    else
+      fvm.execute(FVM::OP_DOT_S, task);
+  }
   return;
 
  error:
   Serial.print(buffer);
   Serial.println(F(" ??"));
   compiling = false;
-}
-
-void compiled_words(Stream& ios)
-{
-  const char* s;
-  int nr = 0;
-  while ((s = fvm.name(nr)) != 0) {
-    int len = ios.print(s);
-    if (++nr % 5 == 0)
-      ios.println();
-    else {
-      for (;len < 16; len++) ios.print(' ');
-    }
-  }
-  ios.println();
 }
 
 void literal(int val)
@@ -409,85 +428,8 @@ void literal(int val)
   }
 }
 
-void generate_code(Stream& ios)
+void execute(int op)
 {
-  const char* name;
-  uint8_t* dp;
-  int val;
-
-  // Generate function name strings and code
-  for (int nr = 0; ((name = fvm.name(nr)) != 0); nr++) {
-    ios.print(F("const char " PREFIX));
-    ios.print(nr);
-    ios.print(F("_PSTR[] PROGMEM = \""));
-    ios.print(name);
-    ios.println(F("\";"));
-    dp = (uint8_t*) fvm.body(nr);
-    switch (*dp) {
-    case FVM::OP_VAR:
-      ios.print(F("FVM::cell_t " PREFIX));
-      ios.print(nr);
-      ios.println(';');
-      ios.print(F("const FVM::var_t " PREFIX));
-      ios.print(nr);
-      ios.println(F("_VAR[] PROGMEM = {"));
-      ios.print(F("  FVM::OP_CONST, &" PREFIX));
-      ios.println(nr);
-      ios.println(F("};"));
-      break;
-    case FVM::OP_CONST:
-      val = dp[2] << 8 | dp[1];
-      ios.print(F("const FVM::const_t " PREFIX));
-      ios.print(nr);
-      ios.println(F("_CONST[] PROGMEM = {"));
-      ios.print(F("  FVM::OP_CONST, "));
-      ios.println(val);
-      ios.println(F("};"));
-      break;
-    default:
-      ios.print(F("const FVM::code_t " PREFIX));
-      ios.print(nr);
-      ios.print(F("_CODE[] PROGMEM = {\n  "));
-      uint8_t* next = (uint8_t*) fvm.name(nr + 1);
-      if (next == 0) next = fvm.dp();
-      int length = next - dp;
-      while (length) {
-	int8_t code = (int8_t) *dp++;
-	ios.print(code);
-	if (--length) ios.print(F(", "));
-      }
-      ios.println();
-      ios.println(F("};"));
-    }
-  }
-
-  // Generate function code table
-  ios.println(F("const FVM::code_P FVM::fntab[] PROGMEM = {"));
-  for (int nr = 0; (dp = (uint8_t*) fvm.body(nr)) != 0; nr++) {
-    ios.print(F("  (code_P) &" PREFIX));
-    ios.print(nr);
-    switch (*dp) {
-    case FVM::OP_VAR:
-      ios.print(F("_VAR"));
-      break;
-    case FVM::OP_CONST:
-      ios.print(F("_CONST"));
-      break;
-    default:
-      ios.print(F("_CODE"));
-    }
-    ios.println(',');
-  }
-  ios.println(F("  0"));
-  ios.println(F("};"));
-
-  // Generate function string table
-  ios.println(F("const str_P FVM::fnstr[] PROGMEM = {"));
-  for (int nr = 0; fvm.body(nr) != 0; nr++) {
-    ios.print(F("  (str_P) " PREFIX));
-    ios.print(nr++);
-    ios.println(F("_PSTR,"));
-  }
-  ios.println(F("  0"));
-  ios.println(F("};"));
+  if (fvm.execute(op, task) > 0)
+    while (fvm.resume(task) > 0);
 }

@@ -29,11 +29,12 @@
  *        1400 Baseline; Startup and Serial
  *  +474  1874 +Measurement
  *  +120  1994 +Blink sketch code and task
- *  +4504 6498 +Forth Virtual Machine
- *  +912  7410 +Kernel dictionary (130 words)
- *  +492  7902 +Trace mode
+ *  +5386 7380 +Forth Virtual Machine
+ *  +915  8296 +Kernel dictionary (130 words)
+ *  +427  8722 +Trace mode(1)
+ *  +178  8900 +Threading(1)
  *
- * Cycle time: 36, 72, 80 us/trace mode
+ * Cycle time: 36, 68, 78 us/trace mode, threading(0)
  *
  * Context switch to FVM, delay check and context
  * switch back to C++/Arduino. The delay check is:
