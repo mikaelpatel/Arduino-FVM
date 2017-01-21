@@ -25,7 +25,7 @@
  * Compiles and executes forth definitions in SRAM and PROGMEM.
  *
  * @section Configuration
- * The Forth Virtua Machine (FVM) should be configured as:
+ * The Forth Virtual Machine (FVM) should be configured as:
  *
  * #define FVM_THREADING 1
  * #define FVM_KERNEL_DICT 1
