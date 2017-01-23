@@ -712,7 +712,7 @@ DISPATCH:
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
-  // : ?dup ( x -- x x | 0 -- 0 ) dup -exit dup ;
+  // : ?dup ( x -- x x | 0 -- 0 ) dup ?exit dup ;
   static const code_t QUESTION_DUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_EXIT),
@@ -1104,7 +1104,7 @@ DISPATCH:
     if (tos < 0) tos = -tos;
   NEXT();
 #elif 1
-  // : abs ( x -- |x| ) dup 0< -exit negate ;
+  // : abs ( x -- |x| ) dup 0< ?exit negate ;
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
@@ -1458,7 +1458,7 @@ DISPATCH:
     }
   NEXT();
 
-  // key ( -- c ) begin ?key -exit yield again ;
+  // key ( -- c ) begin ?key ?exit yield again ;
   // Wait for character and read
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
@@ -1517,7 +1517,7 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 #else
-  // : spaces ( n -- ) begin ?dup -exit space 1- again ;
+  // : spaces ( n -- ) begin ?dup ?exit space 1- again ;
   static const code_t SPACES_CODE[] PROGMEM = {
       FVM_OP(QUESTION_DUP),
       FVM_OP(ZERO_EXIT),
