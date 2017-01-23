@@ -50,7 +50,7 @@
 /**
  * Enable kernel optimization.
  * 0: No kernel optimization.
- * 1: Tail optimization.
+ * 1: Tail call optimization.
  */
 #define FVM_KERNEL_OPT 1
 
@@ -150,7 +150,15 @@ int FVM::resume(task_t& task)
   // Positive opcode (0..127) are direct operation codes. Negative
   // opcodes (-1..-128) are negative index (plus one) in threaded code
   // table. Direct operation codes may be implemented as a primitive
-  // or as an internal threaded code call. Tail call optimization.
+  // or as an internal threaded code call.
+  //
+  // The virtual machine allows 512 tokens. These are used as follows:
+  // Kernel tokens 0..255: 0..127 direct, 128..255 OP_KERNEL prefix.
+  // Application tokens 256..511: 256..383 direct, -1..-128, indexing
+  // threaded code table in program memory 0..127, 384..511, indexing
+  // threaded code table in data memory 0..127 OP_CALL prefix.
+  //
+  // Kernel inner may be configured for tail call optimization.
 #if (FVM_TRACE == 0)
 
   while ((ir = fetch_byte(ip++)) < 0) {
