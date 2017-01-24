@@ -159,6 +159,10 @@ int FVM::resume(task_t& task)
   // threaded code table in data memory 0..127 OP_CALL prefix.
   //
   // Kernel inner may be configured for tail call optimization.
+  //
+  // Kernel operations are documented according to ANSI X3.215-1994,
+  // American National Standard for Information Systems, Programming
+  // Languages - Forth, March 24, 1994.
 #if (FVM_TRACE == 0)
 
   while ((ir = fetch_byte(ip++)) < 0) {
@@ -264,8 +268,8 @@ DISPATCH:
     if (tmp != 0) NEXT();
   FALLTHROUGH();
 
-  // exit ( rp: ip -- )
-  // Exit from call. Pop instruction pointer from return stack.
+  // exit ( -- ) ( R: nest-sys -- )
+  // Return control to the calling definition specified by nest-sys.
   OP(EXIT)
     ip = *rp--;
   NEXT();
@@ -355,8 +359,11 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 
-  // (do) ( high low -- rp: high low )
-  // Start loop block with index [low..high].
+  // (do) ( n1|u1 n2|u2 -- ) ( R: -- loop-sys )
+  // Set up loop control parameters with index n2|u2 and limit
+  // n1|u1. An ambiguous condition exists if n1|u1 and n2|u2 are not
+  // both the same type. Anything already on the return stack becomes
+  // unavailable until the loop-control parameters are discarded.
   OP(DO)
     tmp = *sp--;
     if (tos != tmp) {
@@ -371,8 +378,10 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 
-  // j ( -- index )
-  // Outer loop index.
+  // j ( -- n|u ) ( R: loop-sys1 loop-sys2 -- loop-sys1 loop-sys2 )
+  // n|u is a copy of the next-outer loop index. An ambiguous
+  // condition exists if the loop control parameters of the next-outer
+  // loop, loop-sys1, are unavailable.
   OP(J)
     *++sp = tos;
     tos = (cell_t) *(rp - 2);
@@ -384,8 +393,12 @@ DISPATCH:
     *rp = *(rp - 1);
   NEXT();
 
-  // (loop) ( -- )
-  // End loop block (increment index by one).
+  // (loop) ( -- ) ( R: loop-sys1 -- | loop-sys2 )
+  // An ambiguous condition exists if the loop control parameters are
+  // unavailable. Add one to the loop index. If the loop index is then
+  // equal to the loop limit, discard the loop parameters and continue
+  // execution immediately following the loop. Otherwise continue
+  // execution at the beginning of the loop.
   OP(LOOP)
     *rp += 1;
     if (*rp < *(rp - 1)) {
@@ -399,7 +412,11 @@ DISPATCH:
   NEXT();
 
   // (+loop) ( n -- )
-  // End loop block (increment index by top of stack).
+  // Add n to the loop index. If the loop index did not cross the
+  // boundary between the loop limit minus one and the loop limit,
+  // continue execution at the beginning of the loop. Otherwise,
+  // discard the current loop control parameters and continue
+  // execution immediately following the loop.
   OP(PLUS_LOOP)
     *rp += tos;
     if (*rp < *(rp - 1)) {
@@ -418,8 +435,9 @@ DISPATCH:
   OP(NOOP)
   NEXT();
 
-  // execute ( token -- )
-  // Execute primitive or threaded code (as token returned by lookup).
+  // execute ( i*x xt -- j*x )
+  // Remove xt from the stack and perform the semantics identified by
+  // it. Other stack effects are due to the semantics of the token.
   OP(EXECUTE)
     if (tos < KERNEL_MAX) {
       ir = tos;
@@ -473,7 +491,7 @@ DISPATCH:
     ip = (code_P) m_body[tmp];
   NEXT();
 
-  // trace ( x -- )
+  // trace ( flag -- )
   // Set trace mode.
   OP(TRACE)
     task.m_trace = tos;
@@ -481,48 +499,52 @@ DISPATCH:
   NEXT();
 
   // room ( -- n bytes )
-  // Number of free dictionary words and bytes.
+  // Number of free dictionary entries and bytes.
   OP(ROOM)
     *++sp = tos;
     *++sp = WORD_MAX - m_next;
     tos = DICT_MAX - (m_dp - (uint8_t*) m_body);
   NEXT();
 
-  // c@ ( addr -- x )
-  // Load character given address on top of stack.
+  // c@ ( c-addr -- char )
+  // Fetch the character stored at c-addr. When the cell size is
+  // greater than character size, the unused high-order bits are all
+  // zeroes.
   OP(C_FETCH)
-    tos = *((int8_t*) tos);
+    tos = *((uint8_t*) tos);
   NEXT();
 
-  // c! ( x addr -- )
-  // Store character given address on top of stack.
+  // c! ( char c-addr -- )
+  // Store char at c-addr. When character size is smaller than cell
+  // size, only the number of low-order bits corresponding to
+  // character size are transferred.
   OP(C_STORE)
-    *((int8_t*) tos) = *sp--;
+    *((uint8_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
-  // @ ( addr -- x )
-  // Load data given address on top of stack.
+  // @ ( a-addr -- x )
+  // x is the value stored at a-addr.
   OP(FETCH)
     tos = *((cell_t*) tos);
   NEXT();
 
-  // ! ( x addr -- )
-  // Store data given address on top of stack.
+  // ! ( x a-addr -- )
+  // Store x at a-addr.
   OP(STORE)
     *((cell_t*) tos) = *sp--;
     tos = *sp--;
   NEXT();
 
-  // +! ( n addr -- )
-  // Add data given address on top of stack.
+  // +! ( n|u a-addr -- )
+  // Add n|u to the single-cell number at a-addr.
   OP(PLUS_STORE)
 #if 0
     *((cell_t*) tos) += *sp--;
     tos = *sp--;
   NEXT();
 #else
-  // : +! ( n addr -- ) dup >r @ + r> ! ;
+  // : +! ( n|u a-addr -- ) dup >r @ + r> ! ;
   static const code_t PLUS_STORE_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(TO_R),
@@ -535,15 +557,15 @@ DISPATCH:
   CALL(PLUS_STORE_CODE);
 #endif
 
-  // dp ( -- addr )
-  // Push address to data pointer.
+  // dp ( -- a-addr )
+  // Push address to data-space pointer.
   OP(DP)
     *++sp = tos;
     tos = (cell_t) &m_dp;
   NEXT();
 
-  // here ( -- addr )
-  // Push data pointer.
+  // here ( -- a-addr )
+  // a-addr is the data-space pointer.
   OP(HERE)
 #if 0
     *++sp = tos;
@@ -560,7 +582,9 @@ DISPATCH:
 #endif
 
   // allot ( n -- )
-  // Allocate number of bytes from data area.
+  // If n is greater than zero, reserve n address units of data
+  // space. If n is less than zero, release |n| address units of data
+  // space. If n is zero, leave the data-space pointer unchanged.
   OP(ALLOT)
 #if 0
     m_dp += tos;
@@ -577,7 +601,7 @@ DISPATCH:
 #endif
 
   // , ( x -- )
-  // Allocate and assign from top of stack.
+  // Reserve one cell of data space and store x in the cell.
   OP(COMMA)
 #if 0
     *((cell_t*) m_dp) = tos;
@@ -596,8 +620,9 @@ DISPATCH:
   CALL(COMMA_CODE);
 #endif
 
-  // c, ( x -- )
-  // Allocate and assign character from top of stack.
+  // c, ( char -- )
+  // Reserve space for one character in the data space and store char
+  // in the space.
   OP(C_COMMA)
 #if 0
     *m_dp++ = tos;
@@ -616,32 +641,33 @@ DISPATCH:
 #endif
 
   // (compile) ( -- )
-  // Add inline token to compile stream.
+  // Add inline token (0..255) to compile stream.
   OP(COMPILE)
     *m_dp++ = fetch_byte(ip++);
   NEXT();
 
-  // >r ( x -- rp: x )
-  // Push data to return stack.
+  // >r ( x -- ) ( R: -- x )
+  // Move x to the return stack.
   OP(TO_R)
     *++rp = (code_t*) tos;
     tos = *sp--;
   NEXT();
 
-  // r> ( rp: x -- x )
-  // Pop data from return stack.
+  // r> ( -- x ) ( R: x -- )
+  // Move x from the return stack to the data stack.
   OP(R_FROM)
     *++sp = tos;
     tos = (cell_t) *rp--;
   NEXT();
 
-  // i ( -- i )
-  // Current loop index.
+  // i ( -- n|u ) ( R: loop-sys -- loop-sys )
+  // n|u is a copy of the current (innermost) loop index. An ambiguous
+  // condition exists if the loop control parameters are unavailable.
   OP(I)
   FALLTHROUGH();
 
-  // r@ ( rp: x -- x, rp: x )
-  // Copy data from top of return stack.
+  // r@ ( -- x ) ( R: x -- x )
+  // Copy x from the return stack to the data stack.
   OP(R_FETCH)
     *++sp = tos;
     tos = (cell_t) *rp;
@@ -654,8 +680,9 @@ DISPATCH:
     tos = (cell_t) sp;
   NEXT();
 
-  // depth ( x1..xn -- x1..xn n )
-  // Push depth of data stack.
+  // depth ( -- +n )
+  // +n is the number of single-cell values contained in the data
+  // stack before +n was placed on the stack.
   OP(DEPTH)
     tmp = (sp - task.m_sp0);
     *++sp = tos;
@@ -663,19 +690,19 @@ DISPATCH:
   NEXT();
 
   // drop ( x -- )
-  // Drop top of stack.
+  // Remove x from the stack.
   OP(DROP)
     tos = *sp--;
   NEXT();
 
-  // nip ( x y -- y )
-  // Drop next of stack.
+  // nip ( x1 x2 -- x2 )
+  // Drop the first item below the top of stack.
   OP(NIP)
 #if 1
     sp -= 1;
   NEXT();
 #else
-  // : nip ( x y -- y ) swap drop ;
+  // : nip ( x1 x2 -- x2 ) swap drop ;
   static const code_t NIP_CODE[] PROGMEM = {
     FVM_OP(SWAP),
     FVM_OP(DROP),
@@ -691,7 +718,7 @@ DISPATCH:
   NEXT();
 
   // dup ( x -- x x )
-  // Duplicate top of stack.
+  // Duplicate x.
   OP(DUP)
 #if 1
     *++sp = tos;
@@ -705,14 +732,14 @@ DISPATCH:
   CALL(DUP_CODE);
 #endif
 
-  // ?dup ( x -- x x | 0 -- 0 )
-  // Duplicate non zero top of stack.
+  // ?dup ( x -- 0 | x x )
+  // Duplicate x if it is non-zero.
   OP(QUESTION_DUP)
 #if 1
     if (tos != 0) *++sp = tos;
   NEXT();
 #else
-  // : ?dup ( x -- x x | 0 -- 0 ) dup ?exit dup ;
+  // : ?dup ( x -- 0 | x x ) dup ?exit dup ;
   static const code_t QUESTION_DUP_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_EXIT),
@@ -722,8 +749,8 @@ DISPATCH:
   CALL(QUESTION_DUP_CODE);
 #endif
 
-  // over ( x y -- x y x )
-  // Duplicate next top of stack.
+  // over ( x1 x2 -- x1 x2 x1 )
+  // Place a copy of x 1 on top of the stack.
   OP(OVER)
 #if 1
     tmp = *sp;
@@ -731,7 +758,7 @@ DISPATCH:
     tos = tmp;
   NEXT();
 #else
-  // : over ( x y -- x y x ) param: 1 ;
+  // : over ( x1 x2 -- x1 x2 x1 ) param: 1 ;
   static const code_t OVER_CODE[] PROGMEM = {
     FVM_OP(PARAM), 1,
     FVM_OP(EXIT)
@@ -739,8 +766,8 @@ DISPATCH:
   CALL(OVER_CODE);
 #endif
 
-  // tuck ( x y -- y x y )
-  // Duplicate top of stack and rotate.
+  // tuck ( x1 x2 -- x2 x1 x2 )
+  // Copy the first (top) stack item below the second stack item.
   OP(TUCK)
 #if 0
     tmp = *sp;
@@ -748,7 +775,7 @@ DISPATCH:
     *++sp = tmp;
   NEXT();
 #else
-  // : tuck ( x y -- y x y ) swap over ;
+  // : tuck ( x1 x2 -- x2 x1 x2 ) swap over ;
   static const code_t TUCK_CODE[] PROGMEM = {
     FVM_OP(SWAP),
     FVM_OP(OVER),
@@ -763,8 +790,8 @@ DISPATCH:
     tos = *(sp - tos);
   NEXT();
 
-  // swap ( x y -- y x )
-  // Swap top two stack elements.
+  // swap ( x1 x2 -- x2 x1 )
+  // Exchange the top two stack items.
   OP(SWAP)
 #if 1
     tmp = tos;
@@ -772,7 +799,7 @@ DISPATCH:
     *sp = tmp;
   NEXT();
 #else
-  // : swap ( x y -- y x ) 1 roll ;
+  // : swap ( x1 x2 -- x2 x1 ) 1 roll ;
   static const code_t SWAP_CODE[] PROGMEM = {
     FVM_OP(ONE),
     FVM_OP(ROLL),
@@ -781,8 +808,8 @@ DISPATCH:
   CALL(SWAP_CODE);
 #endif
 
-  // rot ( x y z -- y z x )
-  // Rotate up top three stack elements.
+  // rot ( x1 x2 x3 -- x2 x3 x1 )
+  // Rotate the top three stack entries.
   OP(ROT)
 #if 1
     tmp = tos;
@@ -791,7 +818,7 @@ DISPATCH:
     *sp = tmp;
   NEXT();
 #else
-  // : rot ( x y z -- z y x ) 2 roll ;
+  // : rot ( x1 x2 x3 -- x2 x3 x1 ) 2 roll ;
   static const code_t ROT_CODE[] PROGMEM = {
     FVM_OP(TWO),
     FVM_OP(ROLL),
@@ -800,7 +827,7 @@ DISPATCH:
   CALL(ROT_CODE);
 #endif
 
-  // -rot ( x y z -- z x y )
+  // -rot ( x1 x2 x3 -- x3 x1 x2 )
   // Rotate down top three stack elements.
   OP(MINUS_ROT)
 #if 0
@@ -810,7 +837,7 @@ DISPATCH:
     *(sp - 1) = tmp;
   NEXT();
 #else
-  // : -rot ( x y z -- z x y ) rot rot ;
+  // : -rot ( x1 x2 x3 -- x3 x1 x2 ) rot rot ;
   static const code_t MINUS_ROT_CODE[] PROGMEM = {
     FVM_OP(ROT),
     FVM_OP(ROT),
@@ -820,7 +847,7 @@ DISPATCH:
 #endif
 
   // roll ( xn..x0 n -- xn-1..x0 xn )
-  // Rotate up stack elements.
+  // Rotate up n+1 stack elements.
   OP(ROLL)
     tmp = tos;
     tos = sp[-tmp];
@@ -829,8 +856,8 @@ DISPATCH:
     sp -= 1;
   NEXT();
 
-  // : 2swap ( x1 x2 y1 y2 -- y1 y2 x1 x2 ) rot >r rot r> ;
-  // Swap two double stack elements.
+  // : 2swap ( x1 x2 x3 x4 -- x3 x4 x1 x2 ) rot >r rot r> ;
+  // Exchange the top two cell pairs.
   OP(TWO_SWAP)
   static const code_t TWO_SWAP_CODE[] PROGMEM = {
     FVM_OP(ROT),
@@ -842,7 +869,7 @@ DISPATCH:
   CALL(TWO_SWAP_CODE);
 
   // : 2dup ( x1 x2 -- x1 x2 x1 x2) over over ;
-  // Duplicate double stack elements.
+  // Duplicate cell pair x1 x2.
   OP(TWO_DUP)
   static const code_t TWO_DUP_CODE[] PROGMEM = {
     FVM_OP(OVER),
@@ -852,7 +879,7 @@ DISPATCH:
   CALL(TWO_DUP_CODE);
 
   // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) param: 3 param: 3 ;
-  // Duplicate double next top of stack.
+  // Copy cell pair x1 x2 to the top of the stack.
   OP(TWO_OVER)
   static const code_t TWO_OVER_CODE[] PROGMEM = {
     FVM_OP(PARAM), 3,
@@ -862,7 +889,7 @@ DISPATCH:
   CALL(TWO_OVER_CODE);
 
   // : 2drop ( x1 x2 -- ) drop drop ;
-  // Drop double top of stack.
+  // Drop cell pair x1 x2 from the stack.
   OP(TWO_DROP)
   static const code_t TWO_DROP_CODE[] PROGMEM = {
     FVM_OP(DROP),
@@ -939,38 +966,38 @@ DISPATCH:
   CALL(CELLS_CODE);
 #endif
 
-  // invert ( x -- ~x )
-  // Bitwise complement top of stack.
+  // invert ( x1 -- x2 )
+  // Invert all bits of x1, giving its logical inverse x2.
   OP(INVERT)
     tos = ~tos;
   NEXT();
 
-  // and ( x y -- x&y )
-  // Bitwise AND top of stack.
+  // and ( x1 x2 -- x3 )
+  // x3 is the bit-by-bit logical “and” of x1 with x2.
   OP(AND)
     tos = *sp-- & tos;
   NEXT();
 
-  // or ( x y -- x|y )
-  // Bitwise OR top of stack.
+  // or ( x1 x2 -- x3 )
+  // x3 is the bit-by-bit inclusive-or of x1 with x2.
   OP(OR)
     tos = *sp-- | tos;
   NEXT();
 
-  // xor ( x y -- x^y )
-  // Bitwise XOR top of stack.
+  // xor ( x1 x2 -- x3 )
+  // x3 is the bit-by-bit exclusive-or of x1 with x2.
   OP(XOR)
     tos = *sp-- ^ tos;
   NEXT();
 
-  // negate ( x -- -x )
-  // Negate top of stack.
+  // negate ( n1 -- n2 )
+  // Negate n1, giving its arithmetic inverse n2.
   OP(NEGATE)
 #if 1
     tos = -tos;
   NEXT();
 #else
-  // : negate ( x -- -x) invert 1+ ;
+  // : negate ( n1 -- n2 ) invert 1+ ;
   static const code_t NEGATE_CODE[] PROGMEM = {
     FVM_OP(INVERT),
     FVM_OP(ONE_PLUS),
@@ -979,101 +1006,122 @@ DISPATCH:
   CALL(NEGATE_CODE);
 #endif
 
-  // 1+ ( x -- x+1 )
-  // Increment top of stack.
+  // 1+ ( n1|u1 -- n2|u2 )
+  // Add one (1) to n1|u1 giving the sum n2|u2.
   OP(ONE_PLUS)
     tos += 1;
   NEXT();
 
-  // 1- ( x -- x-1 )
-  // Decrement top of stack.
+  // 1- ( n1|u1 -- n2|u2 )
+  // Subtract one (1) from n1|u1 giving the difference n2|u2.
   OP(ONE_MINUS)
     tos -= 1;
   NEXT();
 
-  // 2+ ( x -- x+2 )
-  // Increment top of stack by two.
+  // 2+ ( n1|u1 -- n2|u2 )
+  // Add two (2) to n1|u1 giving the sum n2|u2.
   OP(TWO_PLUS)
     tos += 2;
   NEXT();
 
-  // 2- ( x -- x-2 )
-  // Decrement top of stack by two.
+  // 2- ( n1|u1 -- n2|u2 )
+  // Subtract two (2) from n1|u1 giving the difference n2|u2.
   OP(TWO_MINUS)
     tos -= 2;
   NEXT();
 
-  // 2* ( x -- x*2 )
-  // Multiply top of stack by two.
+  // 2* ( x1 -- x2 )
+  // x2 is the result of shifting x1 one bit toward the most-
+  // significant bit, filling the vacated least-significant bit
+  // with zero.
   OP(TWO_STAR)
     tos <<= 1;
   NEXT();
 
-  // 2/ ( x -- x*2 )
-  // Divide top of stack by two.
+  // 2/ ( x1 -- x2 )
+  // x2 is the result of shifting x1 one bit toward the
+  // least-significant bit, leaving the most-significant bit
+  // unchanged.
   OP(TWO_SLASH)
     tos >>= 1;
   NEXT();
 
-  // + ( x y -- x+y )
-  // Add two top of stack elements.
+  // + ( n1|u1 n2|u2 -- n3|u3 )
+  // Add n2|u2 to n1|u1, giving the sum n3|u3.
   OP(PLUS)
     tos = *sp-- + tos;
   NEXT();
 
-  // - ( x y -- x-y )
-  // Subtract two top of stack elements.
+  // - ( n1|u1 n2|u2 -- n3|u3 )
+  // Subtract n2|u2 from n1|u1, giving the difference n3|u3.
   OP(MINUS)
     tos = *sp-- - tos;
   NEXT();
 
-  // * ( x y -- x*y )
-  // Multiply two top of stack elements.
+  // * ( n1|u1 n2|u2 -- n3|u3 )
+  // Multiply n1|u1 by n2|u2 giving the product n3|u3.
   OP(STAR)
     tos = *sp-- * tos;
   NEXT();
 
-  // */ ( x y z -- x*y/z )
-  // Multiply and divide top of stack elements.
+  // */ ( n1 n2 n3 -- n4 )
+  // Multiply n1 by n2 producing the intermediate double-cell result
+  // d. Divide d by n3 giving the single-cell quotient n4. An
+  // ambiguous condition exists if n3 is zero or if the quotient n4
+  // lies outside the range of a signed number.
   OP(STAR_SLASH)
     tmp = *sp--;
     tos = (((cell2_t) tmp) * (*sp--)) / tos;
   NEXT();
 
-  // / ( x y -- x/y )
-  // Divide two top of stack elements.
+  // / ( n1 n2 -- n3 )
+  // Divide n1 by n2, giving the single-cell quotient n3. An
+  // ambiguous condition exists if n2 is zero.
   OP(SLASH)
     tos = *sp-- / tos;
   NEXT();
 
-  // mod ( x y -- x%y )
-  // Remainder after division of two top of stack elements.
+  // mod ( n1 n2 -- n3 )
+  // Divide n1 by n2, giving the single-cell remainder n3. An
+  // ambiguous condition exists if n2 is zero.
   OP(MOD)
     tos = *sp-- % tos;
   NEXT();
 
-  // /mod ( x y -- x/y x%y )
-  // Divide two top of stack elements.
+  // /mod ( n1 n2 -- n3 n4 )
+  // Divide n1 by n2, giving the single-cell remainder n3 and the
+  // single-cell quotient n4. An ambiguous condition exists if n2 is
+  // zero.
   OP(SLASH_MOD)
     tmp = *sp / tos;
     tos = *sp % tos;
     *sp = tmp;
   NEXT();
 
-  // lshift ( x n -- x<<n )
-  // Logical shift left given number of positions.
+  // lshift ( x1 u -- x2 )
+  // Perform a logical left shift of u bit-places on x1, giving
+  // x2. Put zeroes into the least significant bits vacated by the
+  // shift. An ambiguous condition exists if u is greater than or
+  // equal to the number of bits in a cell.
   OP(LSHIFT)
     tos = *sp-- << tos;
   NEXT();
 
-  // rshift ( x n -- x>>n )
-  // Logical shift right given number of positions.
+  // rshift ( x1 u -- x2 )
+  // Perform a logical right shift of u bit-places on x1, giving x2.
+  // Put zeroes into the most significant bits vacated by the
+  // shift. An ambiguous condition exists if u is greater than or
+  // equal to the number of bits in a cell.
   OP(RSHIFT)
     tos = *sp-- >> tos;
   NEXT();
 
-  // within ( x low high -- flag )
-  // Check if value is within boundary.
+  // within ( n1|u1 n2|u2 n3|u3 -- flag )
+  // Perform a comparison of a test value n1|u 1 with a lower limit
+  // n2|u2 and an upper limit n3|u3, returning true if either (n2|u2 <
+  // n3|u3 and (n2|u2 <= n1|u1 and n1|u1 < n3|u3)) or (n2|u2 > n3|u3
+  // and (n2|u2 <= n1|u1 or n1|u1 < n3|u3)) is true, returning false
+  // otherwise.
   OP(WITHIN)
 #if 0
     tmp = *sp--;
@@ -1081,7 +1129,7 @@ DISPATCH:
     sp--;
   NEXT();
 #else
-  // : within ( x low high -- flag ) >r over swap < swap r> > or not ;
+  // : within ( n1|u1 n2|u2 n3|u3 -- flag ) >r over swap < swap r> > or not ;
   static const code_t WITHIN_CODE[] PROGMEM = {
     FVM_OP(TO_R),
     FVM_OP(OVER),
@@ -1097,14 +1145,14 @@ DISPATCH:
   CALL(WITHIN_CODE);
 #endif
 
-  // abs ( x -- |x| )
-  // Absolute value of top of stack.
+  // abs ( n -- u )
+  // u is the absolute value of n.
   OP(ABS)
 #if 0
     if (tos < 0) tos = -tos;
   NEXT();
 #elif 1
-  // : abs ( x -- |x| ) dup 0< ?exit negate ;
+  // : abs ( n -- u ) dup 0< ?exit negate ;
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
@@ -1114,7 +1162,7 @@ DISPATCH:
   };
   CALL(ABS_CODE);
 #else
-  // : abs ( x -- |x| ) dup 0< swap over + xor ;
+  // : abs ( n -- u ) dup 0< swap over + xor ;
   static const code_t ABS_CODE[] PROGMEM = {
     FVM_OP(DUP),
     FVM_OP(ZERO_LESS),
@@ -1127,15 +1175,15 @@ DISPATCH:
   CALL(ABS_CODE);
 #endif
 
-  // min ( x y -- min(x,y) )
-  // Minimum value of top two stack elements.
+  // min ( n1 n2 -- n3 )
+  // n3 is the lesser of n1 and n2.
   OP(MIN)
 #if 0
     tmp = *sp--;
     if (tmp < tos) tos = tmp;
   NEXT();
 #elif 0
-  // : min ( x y -- min(x,y)) 2dup > if swap then drop ;
+  // : min ( n1 n2 -- n3 ) 2dup > if swap then drop ;
   static const code_t MIN_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
     FVM_OP(GREATER),
@@ -1146,7 +1194,7 @@ DISPATCH:
   };
   CALL(MIN_CODE);
 #else
-  // : min ( x y -- min(x,y)) over - dup 0< and + ;
+  // : min ( n1 n2 -- n3 ) over - dup 0< and + ;
   static const code_t MIN_CODE[] PROGMEM = {
     FVM_OP(OVER),
     FVM_OP(MINUS),
@@ -1159,15 +1207,15 @@ DISPATCH:
   CALL(MIN_CODE);
 #endif
 
-  // max ( x y -- max(x,y))
-  // Maximum value of top two stack elements.
+  // max ( n1 n2 -- n3 )
+  // n3 is the greater of n1 and n2.
   OP(MAX)
 #if 0
     tmp = *sp--;
     if (tmp > tos) tos = tmp;
   NEXT();
 #elif 0
-  // : max ( x y -- max(x,y)) 2dup < if swap then drop ;
+  // : max ( n1 n2 -- n3 ) 2dup < if swap then drop ;
   static const code_t MAX_CODE[] PROGMEM = {
     FVM_OP(TWO_DUP),
     FVM_OP(LESS),
@@ -1178,7 +1226,7 @@ DISPATCH:
   };
   CALL(MAX_CODE);
 #else
-  // : max ( x y -- max(x,y)) over swap - dup 0< and - ;
+  // : max ( n1 n2 -- n3 ) over swap - dup 0< and - ;
   static const code_t MAX_CODE[] PROGMEM = {
     FVM_OP(OVER),
     FVM_OP(SWAP),
@@ -1192,19 +1240,19 @@ DISPATCH:
   CALL(MAX_CODE);
 #endif
 
-  // bool ( x<>0: x -- TRUE, else FALSE )
-  // Convert top of stack to boolean (alias 0<>).
+  // bool ( x -- flag )
+  // flag is true if and only if x is not equal to zero.
   OP(BOOL)
   FALLTHROUGH();
 
-  // 0<> ( x<>0: x -- -1, else 0 )
-  // Top of stack not equal zero.
+  // 0<> ( x -- flag )
+  // flag is true if and only if x is not equal to zero.
   OP(ZERO_NOT_EQUALS)
 #if 1
     tos = (tos != 0) ? -1 : 0;
   NEXT();
 #else
-  // : 0<> ( x<>0: x -- -1, else 0 ) 0= not ;
+  // : 0<> ( x -- flag ) 0= not ;
   static const code_t ZERO_NOT_EQUALS_CODE[] PROGMEM = {
     FVM_OP(ZERO_EQUALS),
     FVM_OP(NOT),
@@ -1213,14 +1261,14 @@ DISPATCH:
   CALL(ZERO_NOT_EQUALS_CODE);
 #endif
 
-  // 0< ( x<0: x -- -1, else 0 )
-  // Top of stack less than zero.
+  // 0< ( n -- flag )
+  // flag is true if and only if n is less than zero.
   OP(ZERO_LESS)
 #if 1
     tos = (tos < 0) ? -1 : 0;
   NEXT();
 #else
-  // : 0< ( x<0: x -- -1, else 0 ) 15 rshift ;
+  // : 0< ( n -- flag ) 15 rshift ;
   static const code_t ZERO_LESS_CODE[] PROGMEM = {
     FVM_CLIT(15),
     FVM_OP(RSHIFT),
@@ -1229,31 +1277,31 @@ DISPATCH:
   CALL(ZERO_LESS_CODE);
 #endif
 
-  // not ( x==0: x -- -1, else 0 )
-  // Convert top of stack to invert boolean (alias 0=).
+  // not ( x -- flag )
+  // flag is true if and only if x is equal to zero.
   OP(NOT)
   FALLTHROUGH();
 
-  // 0= ( x==0: x -- -1, else 0 )
-  // Top of stack less equal zero.
+  // 0= ( x -- flag )
+  // flag is true if and only if x is equal to zero.
   OP(ZERO_EQUALS)
     tos = (tos == 0) ? -1 : 0;
   NEXT();
 
-  // 0> ( x>0: x -- -1, else 0 )
-  // Top of stack less greater than zero.
+  // 0> ( n -- flag )
+  // flag is true if and only if n is greater than zero.
   OP(ZERO_GREATER)
     tos = (tos > 0) ? -1 : 0;
   NEXT();
 
-  // <> ( x<>y: x y -- -1, else 0 )
-  // Top two stack elements are not equal.
+  // <> ( x1 x2 -- flag )
+  // flag is true if and only if x1 is not bit-for-bit the same as x2.
   OP(NOT_EQUALS)
 #if 0
     tos = (*sp-- != tos) ? -1 : 0;
   NEXT();
 #else
-  // : <> ( x<>y: x y -- -1, else 0 ) - bool ;
+  // : <> ( x1 x2 -- flag ) - bool ;
   static const code_t NOT_EQUALS_CODE[] PROGMEM = {
     FVM_OP(MINUS),
     FVM_OP(BOOL),
@@ -1262,14 +1310,14 @@ DISPATCH:
   CALL(NOT_EQUALS_CODE);
 #endif
 
-  // < ( x<y: x y -- -1, else 0 )
-  // Second element is less than top element.
+  // < ( n1 n2 -- flag )
+  // flag is true if and only if n1 is less than n2.
   OP(LESS)
 #if 0
     tos = (*sp-- < tos) ? -1 : 0;
   NEXT();
 #else
-  // : < ( x<y: x y -- -1, else 0 ) - 0< ;
+  // : < ( n1 n2 -- flag ) - 0< ;
   static const code_t LESS_CODE[] PROGMEM = {
     FVM_OP(MINUS),
     FVM_OP(ZERO_LESS),
@@ -1278,14 +1326,14 @@ DISPATCH:
   CALL(LESS_CODE);
 #endif
 
-  // = ( x==y: x y -- -1, else 0 )
-  // Top two stack elements are equal
+  // = ( x1 x2 -- flag )
+  // flag is true if and only if x1 is bit-for-bit the same as x2.
   OP(EQUALS)
 #if 0
     tos = (*sp-- == tos) ? -1 : 0;
   NEXT();
 #else
-  // : = ( x==y: x y -- -1, else 0 ) - 0= ;
+  // : = ( x1 x2 -- flag ) - 0= ;
   static const code_t EQUALS_CODE[] PROGMEM = {
     FVM_OP(MINUS),
     FVM_OP(ZERO_EQUALS),
@@ -1294,14 +1342,14 @@ DISPATCH:
   CALL(EQUALS_CODE);
 #endif
 
-  // > ( x>y: x y -- -1, else 0 )
-  // Second element is greater than top element.
+  // > ( n1 n2 -- flag )
+  // flag is true if and only if n1 is greater than n2.
   OP(GREATER)
 #if 0
     tos = (*sp-- > tos) ? -1 : 0;
   NEXT();
 #else
-  // : > ( x>y: x y -- -1, else 0 ) - 0> ;
+  // : > ( n1 n2 -- flag ) - 0> ;
   static const code_t GREATER_CODE[] PROGMEM = {
     FVM_OP(MINUS),
     FVM_OP(ZERO_GREATER),
@@ -1310,8 +1358,8 @@ DISPATCH:
   CALL(GREATER_CODE);
 #endif
 
-  // u< ( x<y: x y -- -1, else 0 )
-  // Second element is unsigned less than top element.
+  // u< ( u1 u2 -- flag )
+  // flag is true if and only if u1 is less than u2.
   OP(U_LESS)
     tos = ((ucell_t) *sp-- < (ucell_t) tos) ? -1 : 0;
   NEXT();
@@ -1322,8 +1370,9 @@ DISPATCH:
     tos = lookup((const char*) tos);
   NEXT();
 
-  // >body ( n -- addr )
-  // Access data area for given token (must be greater than KERNEL_MAX).
+  // >body ( xt -- a-addr )
+  // a-addr is the data-field address corresponding to xt. An
+  // ambiguous condition exists if xt is not for a defined word.
   OP(TO_BODY)
     tp = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
     tos = fetch_word(tp+1);
@@ -1404,15 +1453,16 @@ DISPATCH:
   CALL(WORDS_CODE);
 #endif
 
-  // base ( -- addr )
-  // Number conversion base.
+  // base ( -- a-addr )
+  // a-addr is the address of a cell containing the current
+  // number-conversion radix.
   OP(BASE)
     *++sp = tos;
     tos = (cell_t) &task.m_base;
   NEXT();
 
   // hex ( -- )
-  // Set hexa-decimal number conversion base.
+  // Set the numeric conversion radix to sixteen (hexa-decimal).
   OP(HEX)
 #if 0
     task.m_base = 16;
@@ -1429,7 +1479,7 @@ DISPATCH:
 #endif
 
   // decimal ( -- )
-  // Set decimal number conversion base.
+  // Set the numeric conversion radix to ten (decimal).
   OP(DECIMAL)
 #if 0
     task.m_base = 10;
@@ -1445,8 +1495,8 @@ DISPATCH:
   CALL(DECIMAL_CODE);
 #endif
 
-  // ?key ( -- c -1/0 )
-  // Read character if available
+  // ?key ( -- c true | false )
+  // Read character if available.
   OP(QUESTION_KEY)
     *++sp = tos;
     if (ios.available()) {
@@ -1458,8 +1508,13 @@ DISPATCH:
     }
   NEXT();
 
-  // key ( -- c ) begin ?key ?exit yield again ;
-  // Wait for character and read
+  // key ( -- char ) begin ?key ?exit yield again ;
+  // Receive one character char, a member of the implementation-
+  // defined character set. Keyboard events that do not correspond to
+  // such characters are discarded until a valid character is
+  // received, and those events are subsequently unavailable. All
+  // standard characters can be received. Characters
+  // received are not displayed.
   OP(KEY)
   static const code_t KEY_CODE[] PROGMEM = {
       FVM_OP(QUESTION_KEY),
@@ -1470,15 +1525,18 @@ DISPATCH:
   };
   CALL(KEY_CODE);
 
-  // emit ( c -- )
-  // Print character.
+  // emit ( x -- )
+  // If x is a graphic character in the implementation-defined
+  // character set, display x. The effect for all other values
+  // of x is implementation-defined.
   OP(EMIT)
     ios.print((char) tos);
     tos = *sp--;
   NEXT();
 
   // cr ( -- )
-  // Print new-line.
+  // Cause subsequent output to appear at the beginning of the next
+  // line.
   OP(CR)
 #if 1
     ios.println();
@@ -1494,7 +1552,7 @@ DISPATCH:
 #endif
 
   // space ( -- )
-  // Print space.
+  // Display one space.
   OP(SPACE)
 #if 1
     ios.print(' ');
@@ -1510,10 +1568,10 @@ DISPATCH:
 #endif
 
   // spaces ( n -- )
-  // Print spaces.
+  // If n is greater than zero, display n spaces.
   OP(SPACES)
 #if 0
-    while (tos--) ios.print(' ');
+    while (tos-- > 0) ios.print(' ');
     tos = *sp--;
   NEXT();
 #else
@@ -1528,15 +1586,15 @@ DISPATCH:
   CALL(SPACES_CODE);
 #endif
 
-  // u. ( ux -- )
-  // Print value on top of stack as unsigned number.
+  // u. ( u -- )
+  // Display u in free field format.
   OP(U_DOT)
     ios.print((ucell_t) tos, task.m_base);
     tos = *sp--;
   NEXT();
 
-  // . ( x -- )
-  // Print value on top of stack as signed number.
+  // . ( n -- )
+  // Display n in free field format.
   OP(DOT)
 #if 0
     ios.print(tos, task.m_base);
@@ -1566,7 +1624,7 @@ DISPATCH:
 #endif
 
   // .s ( -- )
-  // Print stack contents.
+  // Display stack contents.
   OP(DOT_S)
 #if 0
     tmp = (sp - task.m_sp0);
@@ -1613,7 +1671,7 @@ DISPATCH:
 #endif
 
   // ." string" ( -- )
-  // Print program memory string.
+  // Display literal data or program memory string.
   OP(DOT_QUOTE)
     if (ip < (code_P) CODE_P_MAX)
       ip += ios.print((const __FlashStringHelper*) ip) + 1;
@@ -1621,15 +1679,15 @@ DISPATCH:
       ip += ios.print((const char*) ip - CODE_P_MAX) + 1;
   NEXT();
 
-  // type ( addr -- )
-  // Print string.
+  // type ( a-addr -- )
+  // Display data memory string.
   OP(TYPE)
     ios.print((const char*) tos);
     tos = *sp--;
   NEXT();
 
-  // .name ( token -- length )
-  // Print name of word (token from lookup).
+  // .name ( xt -- length | 0 )
+  // Display name of word (token from lookup) and return length.
   OP(DOT_NAME)
   {
     const __FlashStringHelper* s = NULL;
@@ -1641,8 +1699,8 @@ DISPATCH:
   }
   NEXT();
 
-  // ? ( addr -- ) @ . ;
-  // Print value of variable.
+  // ? ( a-addr -- ) @ . ;
+  // Display value of cell at a-addr.
   OP(QUESTION)
   static const code_t QUESTION_CODE[] PROGMEM = {
     FVM_OP(FETCH),
