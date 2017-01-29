@@ -386,6 +386,7 @@ class FVM {
    * Construct forth virtual machine with given data area and dynamic
    * dictionary.
    * @param[in] dp0 initial data pointer (default none).
+   * @param[in] bytes in data area (default 0).
    * @param[in] words number of words in dynamic dictionary (default 0).
    */
    FVM(uint8_t* dp0 = 0, size_t bytes = 0, uint8_t words = 0) :
@@ -395,8 +396,9 @@ class FVM {
     m_dp(dp0),
     m_dp0(dp0)
   {
-    if (words == 0) return;
     m_body = (code_t**) dp0;
+    m_name = 0;
+    if (words == 0) return;
     dp0 += sizeof(code_t**) * words;
     m_name = (char**) dp0;
     dp0 += sizeof(char**) * words;
@@ -426,24 +428,81 @@ class FVM {
    * Allocate and copy given operation code to data area.
    * @param[in] op operation code (token).
    */
-  void compile(code_t op)
+  bool compile(int op)
   {
-    *m_dp++ = op;
+    if (op < 0 || op > TOKEN_MAX) return (false);
+    if (op < KERNEL_MAX) {
+      if (op >= CORE_MAX) *m_dp++ = OP_KERNEL;
+      *m_dp++ = op;
+    }
+    else if (op < APPLICATION_MAX) {
+      *m_dp++ = APPLICATION_MAX - op - 1;
+    }
+    else {
+      *m_dp++ = OP_CALL;
+      *m_dp++ = op - APPLICATION_MAX;
+    }
+    return (true);
   }
 
   /**
-   * Allocate and copy given string to data area. Add name and body
-   * reference to the dynamic dictionary.
+   * Compile literal to data area.
+   * @param[in] val literal value.
+   */
+  void literal(int val)
+  {
+    if (val < INT8_MIN || val > INT8_MAX) {
+      *m_dp++ = OP_LIT;
+      *m_dp++ = val;
+      *m_dp++ = val >> 8;
+    }
+    else {
+      *m_dp++ = OP_CLIT;
+      *m_dp++ = val;
+    }
+  }
+
+  /**
+   * Create word in dictionary. Initiate body reference to the dynamic
+   * dictionary.
    * @param[in] name string.
    */
-  void create(const char* name)
+  bool create(const char* name)
   {
-    if (m_next == WORD_MAX) return;
+    if (m_next == WORD_MAX) return (false);
     m_name[m_next] = (char*) m_dp;
     strcpy((char*) m_dp, name);
     m_dp += strlen(name) + 1;
     m_body[m_next] = (code_t*) (m_dp + CODE_P_MAX);
     m_next += 1;
+    return (true);
+  }
+
+  /**
+   * Create variable in dictionary.
+   * @param[in] name string.
+   */
+  bool variable(const char* name)
+  {
+    if (!create(name)) return (false);
+    *m_dp++ = OP_VAR;
+    *m_dp++ = 0;
+    *m_dp++ = 0;
+    return (true);
+  }
+
+  /**
+   * Create constant in dictionary.
+   * @param[in] name string.
+   * @param[in] val value.
+   */
+  bool constant(const char* name, int val)
+  {
+    if (!create(name)) return (false);
+    *m_dp++ = OP_CONST;
+    *m_dp++ = val;
+    *m_dp++ = val >> 8;
+    return (true);
   }
 
   /**
@@ -469,12 +528,13 @@ class FVM {
    * given token/word.
    * @param[in] op operation code (token).
    */
-  void forget(int op)
+  bool forget(int op)
   {
     op = op - APPLICATION_MAX;
-    if (op < 0 || op > m_next) return;
+    if (op < 0 || op > m_next) return (false);
     m_dp = (uint8_t*) m_name[op];
     m_next = op;
+    return (true);
   }
 
   /**

@@ -259,13 +259,13 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Compiler V1.0.0: started [Newline]"));
+  Serial.println(F("FVM/Compiler V1.0.1: started [Newline]"));
 }
 
 void loop()
 {
   char buffer[32];
-  int op, val;
+  int op;
   char c;
 
   // Scan and lookup word
@@ -275,15 +275,17 @@ void loop()
   // Check for literal value (word not found)
   if (op < 0) {
     char* endptr;
-    val = strtol(buffer, &endptr, task.m_base);
+    int val = strtol(buffer, &endptr, task.m_base);
     if (*endptr != 0) goto error;
-    literal(val);
+    if (compiling)
+      fvm.literal(val);
+    else
+      task.push(val);
   }
 
   // Check for kernel words; compile or execute
   else if (op < FVM::KERNEL_MAX) {
     if (compiling) {
-      if (op >= FVM::CORE_MAX) fvm.compile(FVM::OP_KERNEL);
       fvm.compile(op);
     }
     else
@@ -308,18 +310,11 @@ void loop()
       break;
     case VARIABLE:
       fvm.scan(buffer, task);
-      fvm.create(buffer);
-      fvm.compile(FVM::OP_VAR);
-      fvm.compile(0);
-      fvm.compile(0);
+      fvm.variable(buffer);
       break;
     case CONSTANT:
-      val = task.pop();
       fvm.scan(buffer, task);
-      fvm.create(buffer);
-      fvm.compile(FVM::OP_CONST);
-      fvm.compile(val);
-      fvm.compile(val >> 8);
+      fvm.constant(buffer, task.pop());
       break;
     case COMPILED_WORDS:
       compiled_words(Serial);
@@ -350,7 +345,7 @@ void loop()
       fvm.compile((FVM::code_t) 0);
       break;
     case LITERAL:
-      literal(task.pop());
+      fvm.literal(task.pop());
       break;
     case SEMICOLON:
       fvm.compile(FVM::OP_EXIT);
@@ -359,10 +354,7 @@ void loop()
     default:
       if (op < SEMICOLON)
 	fvm.execute(op, task);
-      else if (op >= FVM::APPLICATION_MAX) {
-	fvm.compile(FVM::APPLICATION_MAX - op - 1);
-      }
-      else goto error;
+      else if (!fvm.compile(op)) goto error;
     }
   }
 
@@ -389,24 +381,6 @@ void compiled_words(Stream& ios)
     }
   }
   ios.println();
-}
-
-void literal(int val)
-{
-  if (compiling) {
-    if (val < INT8_MIN || val > INT8_MAX) {
-      fvm.compile(FVM::OP_LIT);
-      fvm.compile(val);
-      fvm.compile(val >> 8);
-    }
-    else {
-      fvm.compile(FVM::OP_CLIT);
-      fvm.compile(val);
-    }
-  }
-  else {
-    task.push(val);
-  }
 }
 
 void generate_code(Stream& ios)

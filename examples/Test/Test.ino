@@ -21,7 +21,8 @@
  * Boston, MA  02111-1307  USA
  *
  * @section Description
- * Token compiler test sketch.
+ * Token compiler test sketch. Copy-paste forth source below and send
+ * to the token compiler.
  */
 
 #include "FVM.h"

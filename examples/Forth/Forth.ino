@@ -30,7 +30,7 @@
  * #define FVM_THREADING 1
  * #define FVM_KERNEL_DICT 1
  *
- * Symbolic trace is option. See FVM.cpp.
+ * Symbolic trace is optional. See FVM.cpp.
  *
  * @section Words
  *
@@ -38,13 +38,15 @@
  * ] ( -- ) start compile.
  * literal ( n -- ) compile literal.
  *
- * ( comment ) start comment.
- * ." string" print string.
+ * ( COMMENT ) start comment.
+ * ." STRING" display string.
  * : NAME ( -- ) start compile of function defintion.
  * ; ( -- ) end compile of function definition.
+ * create NAME ( -- ) define word.
  * variable NAME ( -- ) define variable.
  * constant NAME ( value -- ) define constant with given value.
  * forget NAME ( -- ) reset allocation to given name.
+ * ' NAME ( -- xt ) lookup word.
  *
  * if ( bool -- ) start conditional block.
  * else ( -- ) end conditional block and start alternative.
@@ -62,30 +64,13 @@
  *
  * mark> ( -- addr ) mark forward branch.
  * resolve> ( addr -- ) resolve forward branch.
- * <mark> ( -- addr ) mark backward branch.
- * <resolve> ( addr -- ) resolve backward branch.
+ * <mark ( -- addr ) mark backward branch.
+ * <resolve ( addr -- ) resolve backward branch.
  */
 
 #include "FVM.h"
 
-/*
-: mark> ( -- addr ) here 0 c, ;
-: resolve> ( addr -- ) here over - swap c! ;
-: <mark ( -- addr ) here ;
-: <resolve ( addr -- ) here - c, ;
-: if ( -- addr ) compile (0branch) mark> ; immediate
-: then ( addr -- ) resolve> ; immediate
-: else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
-: begin ( -- addr ) <mark ; immediate
-: again ( addr -- ) compile (branch) <resolve ; immediate
-: until ( addr -- ) compile (0branch) <resolve ; immediate
-: while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
-: repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
-: do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
-: loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
-: +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
-*/
-
+// : mark> ( -- addr ) here 0 c, ;
 FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(HERE),
   FVM_OP(ZERO),
@@ -93,6 +78,7 @@ FVM_COLON(0, FORWARD_MARK, "mark>")
   FVM_OP(EXIT)
 };
 
+// : resolve> ( addr -- ) here over - swap c! ;
 FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(HERE),
   FVM_OP(OVER),
@@ -102,11 +88,13 @@ FVM_COLON(1, FORWARD_RESOLVE, "resolve>")
   FVM_OP(EXIT)
 };
 
+// : <mark ( -- addr ) here ;
 FVM_COLON(2, BACKWARD_MARK, "<mark")
   FVM_OP(HERE),
   FVM_OP(EXIT)
 };
 
+// : <resolve ( addr -- ) here - c, ;
 FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
   FVM_OP(HERE),
   FVM_OP(MINUS),
@@ -114,6 +102,7 @@ FVM_COLON(3, BACKWARD_RESOLVE, "<resolve")
   FVM_OP(EXIT)
 };
 
+// : if ( -- addr ) compile (0branch) mark> ; immediate
 FVM_COLON(4, IF, "if")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
@@ -121,10 +110,12 @@ FVM_COLON(4, IF, "if")
   FVM_OP(EXIT)
 };
 
+// : then ( addr -- ) resolve> ; immediate
 const int THEN = 5;
 const char THEN_PSTR[] PROGMEM = "then";
 #define THEN_CODE FORWARD_RESOLVE_CODE
 
+// : else ( addr1 -- addr2 ) compile (branch) mark> swap resolve> ; immediate
 FVM_COLON(6, ELSE, "else")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
@@ -134,10 +125,12 @@ FVM_COLON(6, ELSE, "else")
   FVM_OP(EXIT)
 };
 
+// : begin ( -- addr ) <mark ; immediate
 const int BEGIN = 7;
 const char BEGIN_PSTR[] PROGMEM = "begin";
 #define BEGIN_CODE BACKWARD_MARK_CODE
 
+// : again ( addr -- ) compile (branch) <resolve ; immediate
 FVM_COLON(8, AGAIN, "again")
   FVM_OP(COMPILE),
   FVM_OP(BRANCH),
@@ -145,6 +138,7 @@ FVM_COLON(8, AGAIN, "again")
   FVM_OP(EXIT)
 };
 
+// : until ( addr -- ) compile (0branch) <resolve ; immediate
 FVM_COLON(9, UNTIL, "until")
   FVM_OP(COMPILE),
   FVM_OP(ZERO_BRANCH),
@@ -152,10 +146,12 @@ FVM_COLON(9, UNTIL, "until")
   FVM_OP(EXIT)
 };
 
+// : while ( addr1 -- addr1 addr2 ) compile (0branch) mark> ; immediate
 const int WHILE = 10;
 const char WHILE_PSTR[] PROGMEM = "while";
 #define WHILE_CODE IF_CODE
 
+// : repeat ( addr1 addr2 -- ) swap [compile] again resolve> ; immediate
 FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(SWAP),
   FVM_CALL(AGAIN),
@@ -163,6 +159,7 @@ FVM_COLON(11, REPEAT, "repeat")
   FVM_OP(EXIT)
 };
 
+// : do ( -- addr1 addr2 ) compile (do) mark> <mark ; immediate
 FVM_COLON(12, DO, "do")
   FVM_OP(COMPILE),
   FVM_OP(DO),
@@ -171,6 +168,7 @@ FVM_COLON(12, DO, "do")
   FVM_OP(EXIT)
 };
 
+// : loop ( addr1 addr2 -- ) compile (loop) <resolve resolve> ; immediate
 FVM_COLON(13, LOOP, "loop")
   FVM_OP(COMPILE),
   FVM_OP(LOOP),
@@ -179,6 +177,7 @@ FVM_COLON(13, LOOP, "loop")
   FVM_OP(EXIT)
 };
 
+// : +loop ( addr1 addr2 -- ) compile (+loop) <resolve resolve> ; immediate
 FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(COMPILE),
   FVM_OP(PLUS_LOOP),
@@ -187,6 +186,7 @@ FVM_COLON(14, PLUS_LOOP, "+loop")
   FVM_OP(EXIT)
 };
 
+// Sketch dispatched symbols
 FVM_SYMBOL(15, LEFT_BRACKET, "[");
 FVM_SYMBOL(16, COMMENT, "(");
 FVM_SYMBOL(17, DOT_QUOTE, ".\"");
@@ -194,10 +194,12 @@ FVM_SYMBOL(18, LITERAL, "literal");
 FVM_SYMBOL(19, SEMICOLON, ";");
 FVM_SYMBOL(20, RIGHT_BRACKET, "]");
 FVM_SYMBOL(21, COLON, ":");
-FVM_SYMBOL(22, VARIABLE, "variable");
-FVM_SYMBOL(23, CONSTANT, "constant");
-FVM_SYMBOL(24, WORDS, "words");
-FVM_SYMBOL(25, FORGET, "forget");
+FVM_SYMBOL(22, CREATE, "create");
+FVM_SYMBOL(23, VARIABLE, "variable");
+FVM_SYMBOL(24, CONSTANT, "constant");
+FVM_SYMBOL(25, WORDS, "words");
+FVM_SYMBOL(26, FORGET, "forget");
+FVM_SYMBOL(27, TICK, "\'");
 
 const FVM::code_P FVM::fntab[] PROGMEM = {
   FORWARD_MARK_CODE,
@@ -240,10 +242,12 @@ const str_P FVM::fnstr[] PROGMEM = {
   (str_P) SEMICOLON_PSTR,
   (str_P) RIGHT_BRACKET_PSTR,
   (str_P) COLON_PSTR,
+  (str_P) CREATE_PSTR,
   (str_P) VARIABLE_PSTR,
   (str_P) CONSTANT_PSTR,
   (str_P) WORDS_PSTR,
   (str_P) FORGET_PSTR,
+  (str_P) TICK_PSTR,
   0
 };
 
@@ -257,13 +261,13 @@ FVM fvm(data, DATA_MAX, DICT_MAX);
 FVM::Task<64,32> task(Serial);
 
 // Interpreter state
-bool compiling = false;
+int compiling = false;
 
 void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Forth V1.0.0: started [Newline]"));
+  Serial.println(F("FVM/Forth V1.0.1: started [Newline]"));
 }
 
 void loop()
@@ -279,15 +283,17 @@ void loop()
   // Check for literal value (word not found)
   if (op < 0) {
     char* endptr;
-    val = strtol(buffer, &endptr, task.m_base);
+    val = strtol(buffer, &endptr, task.m_base == 10 ? 0 : task.m_base);
     if (*endptr != 0) goto error;
-    literal(val);
+    if (compiling)
+      fvm.literal(val);
+    else
+      task.push(val);
   }
 
   // Check for kernel words; compile or execute
   else if (op < FVM::KERNEL_MAX) {
     if (compiling) {
-      if (op >= FVM::CORE_MAX) fvm.compile(FVM::OP_KERNEL);
       fvm.compile(op);
     }
     else {
@@ -308,23 +314,22 @@ void loop()
       break;
     case COLON:
       c = fvm.scan(buffer, task);
-      fvm.create(buffer);
+      if (!fvm.create(buffer)) goto error;
       compiling = true;
+      break;
+    case CREATE:
+      c = fvm.scan(buffer, task);
+      if (!fvm.create(buffer)) goto error;
+      fvm.compile(FVM::OP_VAR);
       break;
     case VARIABLE:
       c = fvm.scan(buffer, task);
-      fvm.create(buffer);
-      fvm.compile(FVM::OP_VAR);
-      fvm.compile(0);
-      fvm.compile(0);
+      if (!fvm.variable(buffer)) goto error;
       break;
     case CONSTANT:
       val = task.pop();
       c = fvm.scan(buffer, task);
-      fvm.create(buffer);
-      fvm.compile(FVM::OP_CONST);
-      fvm.compile(val);
-      fvm.compile(val >> 8);
+      if (!fvm.constant(buffer, val)) goto error;
       break;
     case WORDS:
       {
@@ -345,12 +350,15 @@ void loop()
       }
       break;
     case FORGET:
-      {
-	c = fvm.scan(buffer, task);
-	op = fvm.lookup(buffer);
-	if (op < FVM::APPLICATION_MAX) goto error;
-	fvm.forget(op);
-      }
+      c = fvm.scan(buffer, task);
+      op = fvm.lookup(buffer);
+      if (!fvm.forget(op)) goto error;
+      break;
+    case TICK:
+      c = fvm.scan(buffer, task);
+      op = fvm.lookup(buffer);
+      if (op >= LEFT_BRACKET && op <= TICK) goto error;
+      task.push(op);
       break;
     default:
       if (op < FVM::APPLICATION_MAX) goto error;
@@ -375,7 +383,7 @@ void loop()
       fvm.compile((FVM::code_t) 0);
       break;
     case LITERAL:
-      literal(task.pop());
+      fvm.literal(task.pop());
       break;
     case SEMICOLON:
       fvm.compile(FVM::OP_EXIT);
@@ -385,13 +393,7 @@ void loop()
       if (op < SEMICOLON) {
 	execute(op);
       }
-      else if (op >= FVM::APPLICATION_MAX) {
-	fvm.compile(FVM::OP_CALL);
-	fvm.compile(op - FVM::APPLICATION_MAX);
-      }
-      else {
-	goto error;
-      }
+      else if (!fvm.compile(op)) goto error;
     }
   }
 
@@ -408,24 +410,6 @@ void loop()
   Serial.print(buffer);
   Serial.println(F(" ??"));
   compiling = false;
-}
-
-void literal(int val)
-{
-  if (compiling) {
-    if (val < INT8_MIN || val > INT8_MAX) {
-      fvm.compile(FVM::OP_LIT);
-      fvm.compile(val);
-      fvm.compile(val >> 8);
-    }
-    else {
-      fvm.compile(FVM::OP_CLIT);
-      fvm.compile(val);
-    }
-  }
-  else {
-    task.push(val);
-  }
 }
 
 void execute(int op)

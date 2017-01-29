@@ -196,6 +196,7 @@ int FVM::resume(task_t& task)
       ios.print((uint16_t) (rp - task.m_rp0));
       ios.print(':');
 #else
+      // Print leading spaces, indent, with return stack depth
       uint16_t depth = (uint16_t) (rp - task.m_rp0);
       while (depth--) ios.print(' ');
 #endif
@@ -366,7 +367,7 @@ DISPATCH:
   // unavailable until the loop-control parameters are discarded.
   OP(DO)
     tmp = *sp--;
-    if (tos != tmp) {
+    if (tos < tmp) {
       *++rp = (code_t*) tmp;
       *++rp = (code_t*) tos;
       ip += 1;
@@ -464,7 +465,7 @@ DISPATCH:
   FALLTHROUGH();
 
   // yield ( -- )
-  // Yield virtual machine.
+  // Yield virtual machine. Proceed on resume.
   OP(YIELD)
     *++sp = tos;
     *++rp = ip;
@@ -856,9 +857,10 @@ DISPATCH:
     sp -= 1;
   NEXT();
 
-  // : 2swap ( x1 x2 x3 x4 -- x3 x4 x1 x2 ) rot >r rot r> ;
+  // 2swap ( x1 x2 x3 x4 -- x3 x4 x1 x2 )
   // Exchange the top two cell pairs.
   OP(TWO_SWAP)
+  // : 2swap ( x1 x2 x3 x4 -- x3 x4 x1 x2 ) rot >r rot r> ;
   static const code_t TWO_SWAP_CODE[] PROGMEM = {
     FVM_OP(ROT),
     FVM_OP(TO_R),
@@ -868,9 +870,10 @@ DISPATCH:
   };
   CALL(TWO_SWAP_CODE);
 
-  // : 2dup ( x1 x2 -- x1 x2 x1 x2) over over ;
+  // 2dup ( x1 x2 -- x1 x2 x1 x2)
   // Duplicate cell pair x1 x2.
   OP(TWO_DUP)
+  // : 2dup ( x1 x2 -- x1 x2 x1 x2) over over ;
   static const code_t TWO_DUP_CODE[] PROGMEM = {
     FVM_OP(OVER),
     FVM_OP(OVER),
@@ -878,9 +881,10 @@ DISPATCH:
   };
   CALL(TWO_DUP_CODE);
 
-  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) param: 3 param: 3 ;
+  // 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 )
   // Copy cell pair x1 x2 to the top of the stack.
   OP(TWO_OVER)
+  // : 2over ( x1 x2 y1 y2 -- x1 y1 y1 y2 x1 x2 ) param: 3 param: 3 ;
   static const code_t TWO_OVER_CODE[] PROGMEM = {
     FVM_OP(PARAM), 3,
     FVM_OP(PARAM), 3,
@@ -888,9 +892,10 @@ DISPATCH:
   };
   CALL(TWO_OVER_CODE);
 
-  // : 2drop ( x1 x2 -- ) drop drop ;
+  // 2drop ( x1 x2 -- )
   // Drop cell pair x1 x2 from the stack.
   OP(TWO_DROP)
+  // : 2drop ( x1 x2 -- ) drop drop ;
   static const code_t TWO_DROP_CODE[] PROGMEM = {
     FVM_OP(DROP),
     FVM_OP(DROP),
@@ -1508,7 +1513,7 @@ DISPATCH:
     }
   NEXT();
 
-  // key ( -- char ) begin ?key ?exit yield again ;
+  // key ( -- char )
   // Receive one character char, a member of the implementation-
   // defined character set. Keyboard events that do not correspond to
   // such characters are discarded until a valid character is
@@ -1516,6 +1521,7 @@ DISPATCH:
   // standard characters can be received. Characters
   // received are not displayed.
   OP(KEY)
+  // : key ( -- char ) begin ?key ?exit yield again ;
   static const code_t KEY_CODE[] PROGMEM = {
       FVM_OP(QUESTION_KEY),
       FVM_OP(NOT),
@@ -1575,13 +1581,13 @@ DISPATCH:
     tos = *sp--;
   NEXT();
 #else
-  // : spaces ( n -- ) begin ?dup ?exit space 1- again ;
+  // : spaces ( n -- ) 0 do space loop ;
   static const code_t SPACES_CODE[] PROGMEM = {
-      FVM_OP(QUESTION_DUP),
-      FVM_OP(ZERO_EXIT),
+    FVM_OP(ZERO),
+    FVM_OP(DO), 4,
       FVM_OP(SPACE),
-      FVM_OP(ONE_MINUS),
-    FVM_OP(BRANCH), -5,
+    FVM_OP(LOOP), -2,
+    FVM_OP(EXIT)
   };
   CALL(SPACES_CODE);
 #endif
@@ -1714,11 +1720,7 @@ DISPATCH:
   OP(DELAY)
   // : delay ( ms -- )
   //   millis >r
-  //   begin
-  //     millis r@ - over u<
-  //   while
-  //     yield
-  //   repeat
+  //   begin millis r@ - over u< while yield repeat
   //   r> 2drop ;
   static const code_t DELAY_CODE[] PROGMEM = {
     FVM_OP(MILLIS),
@@ -1829,7 +1831,7 @@ int FVM::interpret(task_t& task)
   }
   else if (res == -1) {
     char* endptr;
-    int value = strtol(buffer, &endptr, task.m_base);
+    int value = strtol(buffer, &endptr, task.m_base == 10 ? 0 : task.m_base);
     if (*endptr != 0) {
       task.m_ios.print(buffer);
       task.m_ios.println(F(" ??"));

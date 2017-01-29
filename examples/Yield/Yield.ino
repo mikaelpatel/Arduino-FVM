@@ -26,9 +26,10 @@
  *
  * @section Measurements
  * Context switch time to and from the virtual machine
- * measured in microseconds for each trace mode (0, 1, 2).
+ * measured in microseconds for each trace mode (0, 1, 2)
+ * and threading (0).
  *
- * Halt: 8 us, 11, 15 us
+ * Halt: 8 us, 11, 16 us
  * Yield/branch: 10 us, 18, 23 us
  *
  * @section Environment
