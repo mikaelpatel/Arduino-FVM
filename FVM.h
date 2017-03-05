@@ -1,6 +1,6 @@
 /**
  * @file FVM.h
- * @version 1.0
+ * @version 1.1
  *
  * @section License
  * Copyright (C) 2016-2017, Mikael Patel
@@ -59,7 +59,7 @@ class FVM {
     OP_EXECUTE = 19,		// Execute operation token
     OP_HALT = 20,		// Halt virtual machine
     OP_YIELD = 21,		// Yield virtual machine
-    OP_KERNEL = 22,		// Call inline kernel token
+    OP_SYSCALL = 22,		// Call system token
     OP_CALL = 23,		// Call application token
     OP_TRACE = 24,		// Set trace mode
     OP_ROOM = 25,		// Dictionary state
@@ -225,19 +225,24 @@ class FVM {
     TOKEN_MAX = 511
   };
 
-  /** Cell data type. */
+  /** Cell and double data type. */
+#if defined(ARDUINO_ARCH_AVR)
   typedef int16_t cell_t;
   typedef uint16_t ucell_t;
-
-  /** Double cell data type. */
   typedef int32_t cell2_t;
   typedef uint32_t ucell2_t;
+#else
+  typedef int32_t cell_t;
+  typedef uint32_t ucell_t;
+  typedef int64_t cell2_t;
+  typedef uint64_t ucell2_t;
+#endif
 
   /**
    * Token and threaded code data type:
    * 0..127 direct kernel words/switch, PROGMEM
    * -1..-128 direct application words/threaded code table, PROGMEM
-   * 0..255 OP_KERNEL prefix, direct kernel words/switch, PROGMEM
+   * 0..255 OP_SYSCALL prefix, direct kernel words/switch, PROGMEM
    * 384..511 mapped 0..127 OP_CALL prefix, SRAM
    */
   typedef int8_t code_t;
@@ -353,7 +358,7 @@ class FVM {
     code_t op;			// CALL(FN)
     code_t noop;		// OP_NOOP
     cell_t* value;		// Pointer to value (RAM)
-  };
+  } __attribute__((packed));
 
   /**
    * Wrapper for variable.
@@ -361,7 +366,7 @@ class FVM {
   struct var_t {
     code_t op;			// OP_VAR/OP_CONST
     cell_t* value;		// Pointer to value (RAM)
-  };
+  } __attribute__((packed));
 
   /**
    * Wrapper for constant.
@@ -369,7 +374,7 @@ class FVM {
   struct const_t {
     code_t op;			// OP_CONST
     cell_t value;		// Value of constant (PROGMEM)
-  };
+  } __attribute__((packed));
 
   /**
    * Wrapper for extension functions.
@@ -380,7 +385,7 @@ class FVM {
     code_t op;			// OP_FUNC
     fn_t fn;			// Pointer to function
     void* env;			// Pointer to environment (RAM)
-  };
+  } __attribute__((packed));
 
   /**
    * Construct forth virtual machine with given data area and dynamic
@@ -432,7 +437,7 @@ class FVM {
   {
     if (op < 0 || op > TOKEN_MAX) return (false);
     if (op < KERNEL_MAX) {
-      if (op >= CORE_MAX) *m_dp++ = OP_KERNEL;
+      if (op >= CORE_MAX) *m_dp++ = OP_SYSCALL;
       *m_dp++ = op;
     }
     else if (op < APPLICATION_MAX) {
@@ -473,7 +478,11 @@ class FVM {
     m_name[m_next] = (char*) m_dp;
     strcpy((char*) m_dp, name);
     m_dp += strlen(name) + 1;
+#if defined(ARDUINO_ARCH_AVR)
     m_body[m_next] = (code_t*) (m_dp + CODE_P_MAX);
+#else
+    m_body[m_next] = (code_t*) m_dp;
+#endif
     m_next += 1;
     return (true);
   }
@@ -488,6 +497,10 @@ class FVM {
     *m_dp++ = OP_VAR;
     *m_dp++ = 0;
     *m_dp++ = 0;
+#if !defined(ARDUINO_ARCH_AVR)
+    *m_dp++ = 0;
+    *m_dp++ = 0;
+#endif
     return (true);
   }
 
@@ -502,6 +515,10 @@ class FVM {
     *m_dp++ = OP_CONST;
     *m_dp++ = val;
     *m_dp++ = val >> 8;
+#if !defined(ARDUINO_ARCH_AVR)
+    *m_dp++ = val >> 16;
+    *m_dp++ = val >> 24;
+#endif
     return (true);
   }
 
@@ -520,7 +537,11 @@ class FVM {
    */
   code_t* body(int op)
   {
+#if defined(ARDUINO_ARCH_AVR)
     return (op < m_next ? m_body[op] - CODE_P_MAX : 0);
+#else
+    return (op < m_next ? m_body[op] : 0);
+#endif
   }
 
   /**

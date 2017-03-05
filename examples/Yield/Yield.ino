@@ -29,8 +29,13 @@
  * measured in microseconds for each trace mode (0, 1, 2)
  * and threading (0).
  *
- * Halt: 8 us, 11, 16 us
- * Yield/branch: 10 us, 18, 23 us
+ * Arduino Uno
+ * Halt: 8, 11, 16 us
+ * Yield/branch: 10, 18, 23 us
+ *
+ * Arduino Due
+ * Halt: 1.42, 2.55, 3.95 us
+ * Yield/branch: 2.18, 4.20, 5.84 us
  *
  * @section Environment
  * Arduino Uno/IDE 1.8.1

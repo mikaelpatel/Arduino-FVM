@@ -1,6 +1,6 @@
 /**
  * @file FVM.cpp
- * @version 1.0
+ * @version 1.1
  *
  * @section License
  * Copyright (C) 2016-2017, Mikael Patel
@@ -59,16 +59,27 @@
 #define NEXT() goto INNER
 #define FALLTHROUGH()
 #define CALL(fn) tp = fn; goto FNCALL
-#define FNTAB(ir) (code_P) pgm_read_word(fntab-ir-1)
-#define FNSTR(ir) (const __FlashStringHelper*) pgm_read_word(fnstr-ir-1)
-#define OPSTR(ir) (const __FlashStringHelper*) pgm_read_word(opstr+ir)
+#define MAP(if) (-ir-1)
+
+#if defined(ARDUINO_ARCH_AVR)
+#  define FNTAB(ix) (code_P) pgm_read_word(fntab+ix)
+#  define FNSTR(ix) (const __FlashStringHelper*) pgm_read_word(fnstr+ix)
+#  define OPSTR(ix) (const __FlashStringHelper*) pgm_read_word(opstr+ix)
+#else
+#  define FNTAB(ix) fntab[ix]
+#  define FNSTR(ix) fnstr[ix]
+#  define OPSTR(ix) opstr[ix]
+#endif
 
 // Configurate for threading program memory only or also data memory
-#if (FVM_THREADING == 0)
-
-#define fetch_byte(ip) (int8_t) pgm_read_byte(ip)
-#define fetch_word(ip) (cell_t) pgm_read_word(ip)
-
+#if (FVM_THREADING == 0) || !defined(ARDUINO_ARCH_AVR)
+#  if defined(ARDUINO_ARCH_AVR)
+#    define fetch_byte(ip) (int8_t) pgm_read_byte(ip)
+#    define fetch_word(ip) (cell_t) pgm_read_word(ip)
+#  else
+#    define fetch_byte(ip) (*((int8_t*) (ip)))
+#    define fetch_word(ip) (*((cell_t*) (ip)))
+#  endif
 #else
 
 int8_t fetch_byte(FVM::code_P ip)
@@ -96,11 +107,11 @@ int FVM::lookup(const char* name)
     if (!strcmp(name, m_name[i])) return (i + FVM::APPLICATION_MAX);
 
   // Search static sketch dictionary, return index
-  for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++)
+  for (int i = 0; (s = (const char*) FNSTR(i)) != 0; i++)
     if (!strcmp_P(name, s)) return (i + FVM::KERNEL_MAX);
 
   // Search static kernel dictionary, return index
-  for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++)
+  for (int i = 0; (s = (const char*) OPSTR(i)) != 0; i++)
     if (!strcmp_P(name, s)) return (i);
 
   // Return error code
@@ -153,7 +164,7 @@ int FVM::resume(task_t& task)
   // or as an internal threaded code call.
   //
   // The virtual machine allows 512 tokens. These are used as follows:
-  // Kernel tokens 0..255: 0..127 direct, 128..255 OP_KERNEL prefix.
+  // Kernel tokens 0..255: 0..127 direct, 128..255 OP_SYSCALL prefix.
   // Application tokens 256..511: 256..383 direct, -1..-128, indexing
   // threaded code table in program memory 0..127, 384..511, indexing
   // threaded code table in data memory 0..127 OP_CALL prefix.
@@ -171,7 +182,7 @@ int FVM::resume(task_t& task)
 #else
     *++rp = ip;
 #endif
-    ip = FNTAB(ir);
+    ip = FNTAB(MAP(ir));
   }
 
 #else
@@ -183,14 +194,14 @@ int FVM::resume(task_t& task)
       uint32_t stop = micros();
 #endif
       ios.print(F("task@"));
-      ios.print((uint16_t) &task);
+      ios.print((ucell_t) &task);
       ios.print(':');
 #if (FVM_TRACE == 2)
       // Print measurement of latest operation; micro-seconds
       ios.print(stop - start);
       ios.print(':');
       // Print current instruction pointer
-      ios.print((uint16_t) ip);
+      ios.print((ucell_t) ip);
       ios.print(':');
       // Print current return stack depth
       ios.print((uint16_t) (rp - task.m_rp0));
@@ -210,12 +221,12 @@ int FVM::resume(task_t& task)
 #else
       *++rp = ip;
 #endif
-      ip = FNTAB(ir);
+      ip = FNTAB(MAP(ir));
       if (task.m_trace) {
 #if (FVM_KERNEL_DICT == 0)
 	ios.print(KERNEL_MAX-ir-1);
 #else
-	ios.print(FNSTR(ir));
+	ios.print(FNSTR(MAP(ir)));
 #endif
       }
     }
@@ -226,7 +237,7 @@ int FVM::resume(task_t& task)
 #if (FVM_THREADING == 1)
       if (ir == OP_CALL)
 	ios.print(m_name[(uint8_t) fetch_byte(ip)]);
-      else if (ir == OP_KERNEL)
+      else if (ir == OP_SYSCALL)
 	ios.print(OPSTR((uint8_t) fetch_byte(ip)));
       else
 #endif
@@ -294,7 +305,11 @@ DISPATCH:
   // Push address of variable (pointer to cell).
   OP(VAR)
     *++sp = tos;
+#if defined(ARDUINO_ARCH_AVR)
     tos = (cell_t) (ip - CODE_P_MAX);
+#else
+    tos = (cell_t) ip;
+#endif
     ip = *rp--;
   NEXT();
 
@@ -328,7 +343,11 @@ DISPATCH:
   OP(DOES)
     *++sp = tos;
     tp = *rp--;
+#if defined(ARDUINO_ARCH_AVR)
     tos = fetch_word(tp + 1);
+#else
+    tos = *((cell_t*) (tp + 1));
+#endif
   NEXT();
 
   // (param) ( xn..x0 -- xn..x0 xi )
@@ -447,7 +466,7 @@ DISPATCH:
     }
     else if (tos < APPLICATION_MAX) {
       *++rp = ip;
-      ip = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
+      ip = FNTAB(tos-KERNEL_MAX);
       tos = *sp--;
     }
     else {
@@ -473,9 +492,9 @@ DISPATCH:
     task.m_rp = rp;
   return (ir == OP_YIELD);
 
-  // (kernel) ( -- )
-  // Call inline kernel token (0..255); compiled code.
-  OP(KERNEL)
+  // (syscall) ( -- )
+  // System call token (0..255); compiled code.
+  OP(SYSCALL)
     ir = fetch_byte(ip++);
   goto DISPATCH;
 
@@ -1379,7 +1398,7 @@ DISPATCH:
   // a-addr is the data-field address corresponding to xt. An
   // ambiguous condition exists if xt is not for a defined word.
   OP(TO_BODY)
-    tp = (code_P) pgm_read_word(fntab+(tos-KERNEL_MAX));
+    tp = FNTAB(tos-KERNEL_MAX);
     tos = fetch_word(tp+1);
   NEXT();
 
@@ -1391,7 +1410,7 @@ DISPATCH:
     const char* s;
     int len;
     int nr = 0;
-    for (int i = 0; (s = (const char*) pgm_read_word(&opstr[i])) != 0; i++) {
+    for (int i = 0; (s = (const char*) OPSTR(i)) != 0; i++) {
       len = ios.print((const __FlashStringHelper*) s);
       if (++nr % 5 == 0)
 	ios.println();
@@ -1399,7 +1418,7 @@ DISPATCH:
 	for (;len < 16; len++) ios.print(' ');
       }
     }
-    for (int i = 0; (s = (const char*) pgm_read_word(&fnstr[i])) != 0; i++) {
+    for (int i = 0; (s = (const char*) FNSTR(i)) != 0; i++) {
       len = ios.print((const __FlashStringHelper*) s);
       if (++nr % 5 == 0)
 	ios.println();
@@ -1679,10 +1698,15 @@ DISPATCH:
   // ." string" ( -- )
   // Display literal data or program memory string.
   OP(DOT_QUOTE)
+#if defined(ARDUINO_ARCH_AVR)
     if (ip < (code_P) CODE_P_MAX)
       ip += ios.print((const __FlashStringHelper*) ip) + 1;
     else
       ip += ios.print((const char*) ip - CODE_P_MAX) + 1;
+#else
+  ip += ios.print((const __FlashStringHelper*) ip) + 1;
+#endif
+
   NEXT();
 
   // type ( a-addr -- )
@@ -1698,9 +1722,9 @@ DISPATCH:
   {
     const __FlashStringHelper* s = NULL;
     if (tos < KERNEL_MAX)
-      s = (const __FlashStringHelper*) pgm_read_word(&opstr[tos]);
+      s = (const __FlashStringHelper*) OPSTR(tos);
     else if (tos < APPLICATION_MAX)
-      s = (const __FlashStringHelper*) pgm_read_word(&fnstr[tos-KERNEL_MAX]);
+      s = (const __FlashStringHelper*) FNSTR(tos-KERNEL_MAX);
     tos = (s != NULL) ? ios.print(s) : 0;
   }
   NEXT();
@@ -1868,7 +1892,7 @@ static const char NOOP_PSTR[] PROGMEM = "noop";
 static const char EXECUTE_PSTR[] PROGMEM = "execute";
 static const char YIELD_PSTR[] PROGMEM = "yield";
 static const char HALT_PSTR[] PROGMEM = "halt";
-static const char KERNEL_PSTR[] PROGMEM = "(kernel)";
+static const char SYSCALL_PSTR[] PROGMEM = "(syscall)";
 static const char CALL_PSTR[] PROGMEM = "(call)";
 static const char TRACE_PSTR[] PROGMEM = "trace";
 static const char ROOM_PSTR[] PROGMEM = "room";
@@ -2014,7 +2038,7 @@ const str_P FVM::opstr[] PROGMEM = {
   (str_P) EXECUTE_PSTR,
   (str_P) HALT_PSTR,
   (str_P) YIELD_PSTR,
-  (str_P) KERNEL_PSTR,
+  (str_P) SYSCALL_PSTR,
   (str_P) CALL_PSTR,
   (str_P) TRACE_PSTR,
   (str_P) ROOM_PSTR,

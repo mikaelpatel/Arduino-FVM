@@ -1,6 +1,6 @@
 /**
  * @file FVM/Compiler.ino
- * @version 1.0
+ * @version 1.1
  *
  * @section License
  * Copyright (C) 2016-2017, Mikael Patel
@@ -246,11 +246,16 @@ const str_P FVM::fnstr[] PROGMEM = {
 };
 
 // Data area for the compiler code generation
+#if defined(ARDUINO_ARCH_AVR)
 const int DATA_MAX = 1024;
+const int WORD_MAX = 32;
+#else
+const int DATA_MAX = 32 * 1024;
+const int WORD_MAX = 128;
+#endif
 uint8_t data[DATA_MAX];
 
 // Forth virtual machine and task
-const int WORD_MAX = 32;
 FVM fvm(data, DATA_MAX, WORD_MAX);
 FVM::Task<64,32> task(Serial);
 bool compiling = false;
@@ -259,7 +264,7 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Compiler V1.0.1: started [Newline]"));
+  Serial.println(F("FVM/Compiler V1.1.0: started [Newline]"));
 }
 
 void loop()

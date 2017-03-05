@@ -1,6 +1,6 @@
 /**
  * @file FVM/Forth.ino
- * @version 1.0
+ * @version 1.1
  *
  * @section License
  * Copyright (C) 2016-2017, Mikael Patel
@@ -252,8 +252,13 @@ const str_P FVM::fnstr[] PROGMEM = {
 };
 
 // Size of data area and dynamic dictionary
+#if defined(ARDUINO_ARCH_AVR)
 const int DATA_MAX = (RAMEND - RAMSTART - 1024);
 const int DICT_MAX = (RAMEND - RAMSTART) / 64;
+#else
+const int DATA_MAX = 32 * 1024;
+const int DICT_MAX = 128;
+#endif
 
 // Forth virtual machine, data area and task
 uint8_t data[DATA_MAX];
@@ -267,7 +272,7 @@ void setup()
 {
   Serial.begin(57600);
   while (!Serial);
-  Serial.println(F("FVM/Forth V1.0.1: started [Newline]"));
+  Serial.println(F("FVM/Forth V1.1.0: started [Newline]"));
 }
 
 void loop()
