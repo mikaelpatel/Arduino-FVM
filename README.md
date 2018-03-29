@@ -4,14 +4,14 @@ This library provides a token threaded Forth kernel that may be
 embedded in Arduino sketches. The kernel can be used as a debug
 shell or even full scale Forth applications.
 
-![shell-screenshot](https://www.dropbox.com/s/68a7qegcn4o7qw0/Screenshot%20from%202016-12-30%2020-40-06.png?dl=0)
+![shell-screenshot](img/shell-screenshot.png)
 
 The Forth Virtual Machine allows multi-tasking which makes it easy to
 integrate with the Arduino core library functions. Context switch to
 and from the virtual machine is as low as 8 us (halt) and 10 us
 (yield/branch).
 
-![compiler-screenshot](https://www.dropbox.com/s/xzgos7dmc4yoqdo/Screenshot%20from%202017-01-01%2016-54-07.png)
+![compiler-screenshot](img/compiler-screenshot.png)
 
 A code generator, token compiler, example sketch is available. Forth
 declarations are translated to the Forth Virtual Machine instruction
