@@ -629,7 +629,10 @@ class FVM {
   static const str_P fnstr[] PROGMEM;
 
   // Address mapping; max program memory code pointer
-  static const uint16_t CODE_P_MAX = 0x8000;
+  // FLASH_TOP is a temporary work-round for a bug in avr-g++
+
+#define FLASH_TOP 0x8000
+  static const uint16_t CODE_P_MAX = FLASH_TOP;
 
  protected:
   // Kernel dictionary (optional)

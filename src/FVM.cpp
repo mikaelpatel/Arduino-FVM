@@ -82,18 +82,21 @@
 #  endif
 #else
 
+// Use FLASH_TOP instead of FVM::CODE_P_MAX as
+// a temporary work-round for a bug in avr-g++.
+
 int8_t fetch_byte(FVM::code_P ip)
 {
-  if (ip < (FVM::code_P) FVM::CODE_P_MAX)
+  if ((uint16_t)ip < FLASH_TOP)
     return ((int8_t) pgm_read_byte(ip));
-  return (*(((int8_t*) ip) - FVM::CODE_P_MAX));
+  return (*(((int8_t*) ip) - FLASH_TOP));
 }
 
 FVM::cell_t fetch_word(FVM::code_P ip)
 {
-  if (ip < (FVM::code_P) FVM::CODE_P_MAX)
+  if ((uint16_t)ip < FLASH_TOP)
     return ((FVM::cell_t) pgm_read_word(ip));
-  return (*(FVM::cell_t*) (((int8_t*) ip) - FVM::CODE_P_MAX));
+  return (*(FVM::cell_t*) (((int8_t*) ip) - FLASH_TOP));
 }
 
 #endif
@@ -1699,7 +1702,9 @@ DISPATCH:
   // Display literal data or program memory string.
   OP(DOT_QUOTE)
 #if defined(ARDUINO_ARCH_AVR)
-    if (ip < (code_P) CODE_P_MAX)
+    /* FLASH_TOP used to work round avr-g++ bug. */
+
+    if ((uint16_t)ip < FLASH_TOP)
       ip += ios.print((const __FlashStringHelper*) ip) + 1;
     else
       ip += ios.print((const char*) ip - CODE_P_MAX) + 1;
